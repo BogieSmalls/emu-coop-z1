@@ -188,14 +188,15 @@ end
 function Pipe:_sendHello()
   if self.helloSent then return end
   self:_sendHelloRaw({kind="hello", v=version.protocolVersion})
-  self.state = "HELLO_SENT"
 end
 
 -- For tests: send any hello shape (real code uses _sendHello).
 function Pipe:_sendHelloRaw(t)
-  self:_sendFrame(t)
+  -- Set state before _sendFrame so a send failure (which calls _fail → FAILED)
+  -- isn't overwritten when control returns here.
   self.helloSent = true
   self.state = "HELLO_SENT"
+  self:_sendFrame(t)
 end
 
 function Pipe:_fail(msg)
