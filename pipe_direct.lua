@@ -29,7 +29,7 @@ function DirectPipe:wake()
         self.server = client
         self:_initFraming()
         self:_sendHello()
-        self:_postConnectInit()
+        self._connectFn = nil
       end
     end
   else
@@ -45,18 +45,12 @@ function DirectPipe:wake()
     self.server = client
     self:_initFraming()
     self:_sendHello()
-    self:_postConnectInit()
   end
   emu.registerexit(function() self:exit() end)
   gui.register(function()
     if self.state ~= "FAILED" and self.state ~= "CLOSED" then self:tick() end
     printMessage()
   end)
-end
-
-function DirectPipe:_postConnectInit()
-  self.state = "TRANSPORT_READY"
-  -- _initFraming and _sendHello already called in caller paths above.
 end
 
 function DirectPipe:tick()
