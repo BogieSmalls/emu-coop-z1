@@ -167,6 +167,106 @@ function Pipe:childExit() end
 function Pipe:childTick() end
 function Pipe:handle() end
 
+-- States: INIT, CONNECTING, TRANSPORT_READY, JOIN_SENT, JOINED, HELLO_SENT, ESTABLISHED, FAILED, RECONNECTING, CLOSED
+function Pipe:_initFraming()
+  self.reader = Frame.newReader(self.server)
+  self.state = "TRANSPORT_READY"
+  self.helloSent = false
+  self.helloReceived = false
+end
+
+function Pipe:_sendFrame(t)
+  local payload = json.encode(t)
+  local res, err = Frame.writeFrame(self.server, payload)
+  if not res then
+    self:_fail("send failed: " .. tostring(err))
+    return false
+  end
+  return true
+end
+
+function Pipe:_sendHello()
+  if self.helloSent then return end
+  self:_sendHelloRaw({kind="hello", v=version.protocolVersion})
+  self.state = "HELLO_SENT"
+end
+
+-- For tests: send any hello shape (real code uses _sendHello).
+function Pipe:_sendHelloRaw(t)
+  self:_sendFrame(t)
+  self.helloSent = true
+  self.state = "HELLO_SENT"
+end
+
+function Pipe:_fail(msg)
+  if self.state == "FAILED" or self.state == "CLOSED" then return end
+  errorMessage(msg)
+  self.state = "FAILED"
+  if self.server then pcall(function() self.server:close() end) end
+end
+
+function Pipe:_pumpFrames()
+  if self.state == "FAILED" or self.state == "CLOSED" then return end
+  local ok, frame = pcall(function() return self.reader:tick() end)
+  if not ok then
+    self:_fail("Wire protocol error: " .. tostring(frame))
+    return
+  end
+  while frame do
+    self:_handleFrame(frame)
+    if self.state == "FAILED" or self.state == "CLOSED" then return end
+    ok, frame = pcall(function() return self.reader:tick() end)
+    if not ok then
+      self:_fail("Wire protocol error: " .. tostring(frame))
+      return
+    end
+  end
+end
+
+function Pipe:_handleFrame(frame)
+  if frame.kind == "hello" then
+    if self.helloReceived then
+      self:_fail("Wire protocol error: duplicate hello")
+      return
+    end
+    if frame.v ~= version.protocolVersion then
+      self:_sendFrame({kind="abort",
+        reason="version mismatch: got v=" .. tostring(frame.v) .. ", expected v=" .. version.protocolVersion})
+      self:_fail("Partner's emu-coop version is incompatible (got v=" ..
+        tostring(frame.v) .. ", expected v=" .. version.protocolVersion .. ")")
+      return
+    end
+    self.helloReceived = true
+    if self.helloSent and self.state ~= "ESTABLISHED" then
+      self.state = "ESTABLISHED"
+      statusMessage(nil)
+      message("Connected to partner")
+      if self.driver and self.driver.wake then self.driver:wake(self) end
+    end
+  elseif frame.kind == "abort" then
+    self:_fail("Partner aborted: " .. tostring(frame.reason))
+  elseif frame.kind == "data" then
+    if self.state ~= "ESTABLISHED" then
+      self:_fail("Wire protocol error: data before established")
+      return
+    end
+    if self.driver and self.driver.handleTable then
+      self.driver:handleTable(frame.body)
+    end
+  elseif frame.kind == "ping" then
+    self:_sendFrame({kind="pong"})
+  elseif frame.kind == "pong" then
+    -- liveness reset handled implicitly by any byte received
+  else
+    self:_fail("Wire protocol error: unknown kind " .. tostring(frame.kind))
+  end
+end
+
+function Pipe:sendTable(t)
+  if self.state ~= "ESTABLISHED" then return end
+  self:_sendFrame({kind="data", body=t})
+end
+
 -- IRC
 
 -- TODO: nickserv, reconnect logic, multiline messages

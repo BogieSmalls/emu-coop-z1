@@ -14,6 +14,9 @@ version = {
 	-- Put your name in here as a variant or something I guess
 	release = "1.2",
 
+	-- Protocol version for new Pipe transports (Direct/Relay). Bump on wire-format break.
+	protocolVersion = 1,
+
 	-- Which version of the way of shuttling data over IRC is this?
 	-- Increment this number if you change the handshake or the way tables are encoded into text in pipe.lua
 	ircPipe = "1.0",
