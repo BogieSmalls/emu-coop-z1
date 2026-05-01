@@ -268,6 +268,11 @@ function Pipe:sendTable(t)
   self:_sendFrame({kind="data", body=t})
 end
 
+function Pipe:abort(reason)
+  self:_sendFrame({kind="abort", reason=reason})
+  self:_fail("Aborted: " .. tostring(reason))
+end
+
 -- IRC
 
 -- TODO: nickserv, reconnect logic, multiline messages

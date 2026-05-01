@@ -181,7 +181,7 @@ function GameDriver:childTick()
 end
 
 function GameDriver:childWake()
-	self:sendTable {"hello", version=version.release, guid=self.spec.guid}
+	self:sendTable {op="hello", version=version.release, guid=self.spec.guid}
 
 	for k,v in pairs(self.spec.sync) do
 		local syncTable = self.spec.sync -- Assume sync table is not replaced at runtime
@@ -240,19 +240,19 @@ function GameDriver:caughtWrite(addr, arg2, record, size)
 end
 
 function GameDriver:handleTable(t)
-	if t[1] then
-		if t[1] == "hello" then
+	if t.op then
+		if t.op == "hello" then
 			if t.guid ~= self.spec.guid then
 				self.pipe:abort("Partner has an incompatible .lua file for this game.")
 				print("Partner's game mode file has guid:\n" .. tostring(t.guid) .. "\nbut yours has:\n" .. tostring(self.spec.guid))
 			end
-		elseif t[1] == "custom" then
-			if t[2] then
-				local f = self.spec.custom and self.spec.custom[t[2]]
+		elseif t.op == "custom" then
+			if t.name then
+				local f = self.spec.custom and self.spec.custom[t.name]
 				if f then
-					f(t[3])
+					f(t.payload)
 				else
-					print("Unrecognized custom message from partner: " .. t[2])
+					print("Unrecognized custom message from partner: " .. t.name)
 				end
 			end
 		end
@@ -324,5 +324,5 @@ function send(name, payload) -- Global for mode files
 	if not name then
 		error("Missing message name on send() call")
 	end
-	mainDriver:sendTable {"custom", name, payload}
+	mainDriver:sendTable {op="custom", name=name, payload=payload}
 end
