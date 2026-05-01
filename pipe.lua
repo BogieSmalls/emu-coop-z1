@@ -285,6 +285,7 @@ Pipe.HEARTBEAT_INTERVAL = 5
 Pipe.HEARTBEAT_TIMEOUT = 15
 
 function Pipe:_heartbeatTick()
+  if not self._clock then return end  -- _initHeartbeat hasn't been called
   if self.state ~= "ESTABLISHED" and self.state ~= "HELLO_SENT" then return end
   local now = self._clock()
   if (now - self._lastRx) > Pipe.HEARTBEAT_TIMEOUT then
