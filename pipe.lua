@@ -403,10 +403,11 @@ function Driver:wake(pipe)
 end
 
 function Driver:sendTable(t)
-	local s = pretty.write(t, '')
-	self.pipe:msg("#" .. s)
+	self.pipe:sendTable(t)
 end
 
+-- Legacy IRC-style text-frame parse path (used by IrcPipe only; new pipes
+-- call handleTable directly with the already-decoded body).
 function Driver:handle(s)
 	local t, err = pretty.read(s)
 	if driverDebug then print("Driver got table " .. tostring(t)) end
