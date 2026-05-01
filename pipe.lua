@@ -225,6 +225,8 @@ function Pipe:_pumpFrames()
 end
 
 function Pipe:_handleFrame(frame)
+  self._lastFrameKind = frame.kind
+  if self._clock then self._lastRx = self._clock() end
   if frame.kind == "hello" then
     if self.helloReceived then
       self:_fail("Wire protocol error: duplicate hello")
@@ -271,6 +273,28 @@ end
 function Pipe:abort(reason)
   self:_sendFrame({kind="abort", reason=reason})
   self:_fail("Aborted: " .. tostring(reason))
+end
+
+function Pipe:_initHeartbeat(clock_fn)
+  self._clock = clock_fn or function() return os.time() end
+  self._lastRx = self._clock()
+  self._lastPing = self._clock()
+end
+
+Pipe.HEARTBEAT_INTERVAL = 5
+Pipe.HEARTBEAT_TIMEOUT = 15
+
+function Pipe:_heartbeatTick()
+  if self.state ~= "ESTABLISHED" and self.state ~= "HELLO_SENT" then return end
+  local now = self._clock()
+  if (now - self._lastRx) > Pipe.HEARTBEAT_TIMEOUT then
+    self:_fail("Connection lost (heartbeat timeout)")
+    return
+  end
+  if (now - self._lastPing) > Pipe.HEARTBEAT_INTERVAL then
+    self:_sendFrame({kind="ping"})
+    self._lastPing = now
+  end
 end
 
 -- IRC
