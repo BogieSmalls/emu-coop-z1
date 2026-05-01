@@ -1,6 +1,111 @@
 -- NETWORKING
 
+local json = require("json")
+
+Frame = {}
+Frame.MAX_PAYLOAD = 4096  -- 4 KiB cap
+
+function Frame.encode_uint32_be(n)
+  return string.char(
+    math.floor(n / 16777216) % 256,
+    math.floor(n / 65536) % 256,
+    math.floor(n / 256) % 256,
+    n % 256
+  )
+end
+
+function Frame.decode_uint32_be(s)
+  local b1, b2, b3, b4 = s:byte(1, 4)
+  return b1 * 16777216 + b2 * 65536 + b3 * 256 + b4
+end
+
+function Frame.writeFrame(sock, payload)
+  if #payload > Frame.MAX_PAYLOAD then
+    error("frame too large: " .. #payload)
+  end
+  local header = Frame.encode_uint32_be(#payload)
+  return sock:send(header .. payload)
+end
+
+-- Reader is a per-pipe stateful object that drives partial reads across ticks.
+function Frame.newReader(sock)
+  local r = {
+    sock = sock,
+    state = "header",       -- "header" or "body"
+    buf = "",
+    bodyLen = nil,
+  }
+  function r:tick()
+    if self.state == "header" then
+      local need = 4 - #self.buf
+      local data, err, partial = self.sock:receive(need)
+      if data then
+        self.buf = self.buf .. data
+      elseif partial then
+        self.buf = self.buf .. partial
+        return nil
+      elseif err == "timeout" then
+        return nil
+      else
+        error("socket error: " .. tostring(err))
+      end
+      if #self.buf == 4 then
+        self.bodyLen = Frame.decode_uint32_be(self.buf)
+        if self.bodyLen > Frame.MAX_PAYLOAD then
+          error("frame too large: " .. self.bodyLen)
+        end
+        self.buf = ""
+        self.state = "body"
+      end
+    end
+    if self.state == "body" then
+      local need = self.bodyLen - #self.buf
+      if need > 0 then
+        local data, err, partial = self.sock:receive(need)
+        if data then
+          self.buf = self.buf .. data
+        elseif partial then
+          self.buf = self.buf .. partial
+          return nil
+        elseif err == "timeout" then
+          return nil
+        else
+          error("socket error: " .. tostring(err))
+        end
+      end
+      if #self.buf == self.bodyLen then
+        local payload = self.buf
+        self.buf = ""
+        self.state = "header"
+        local ok, parsed = pcall(json.decode, payload)
+        if not ok then
+          error("malformed JSON: " .. tostring(parsed))
+        end
+        return parsed
+      end
+    end
+    return nil
+  end
+  return r
+end
+
 -- A Pipe class is responsible for, somehow or other, connecting to the internet and funnelling data between driver objects on different machines.
+
+-- Stubs for test environments where penlight and BizHawk globals are not loaded.
+if not class then
+  class = setmetatable({}, {__index = function(t, k)
+    return function(base)
+      local cls = base or {}
+      cls.__index = cls
+      _G[k] = cls
+      return cls
+    end
+  end})
+  version = version or setmetatable({}, {__index = function() return "" end})
+  stringx = stringx or {split = function(s) return {} end}
+  pretty  = pretty  or {write = tostring, read = function() return nil, "stub" end}
+  emu     = emu     or {registerexit = function() end}
+end
 
 class.Pipe()
 function Pipe:_init()
