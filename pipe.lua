@@ -91,22 +91,6 @@ end
 
 -- A Pipe class is responsible for, somehow or other, connecting to the internet and funnelling data between driver objects on different machines.
 
--- Stubs for test environments where penlight and BizHawk globals are not loaded.
-if not class then
-  class = setmetatable({}, {__index = function(t, k)
-    return function(base)
-      local cls = base or {}
-      cls.__index = cls
-      _G[k] = cls
-      return cls
-    end
-  end})
-  version = version or setmetatable({}, {__index = function() return "" end})
-  stringx = stringx or {split = function(s) return {} end}
-  pretty  = pretty  or {write = tostring, read = function() return nil, "stub" end}
-  emu     = emu     or {registerexit = function() end}
-end
-
 class.Pipe()
 function Pipe:_init()
 	self.buffer = ""

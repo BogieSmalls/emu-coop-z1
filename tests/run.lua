@@ -1,6 +1,20 @@
 -- Minimal test runner. Usage: lua tests/run.lua tests/test_*.lua
 package.path = package.path .. ";./?.lua;./vendor/?.lua;./tests/?.lua"
 
+-- Stubs/loads for the FCEUX globals and Penlight modules that pipe.lua expects
+-- when it's required from test code (outside the emulator).
+class   = require("pl.class")
+pretty  = require("pl.pretty")
+stringx = require("pl.stringx")
+List    = require("pl.List")
+tablex  = require("pl.tablex")
+errorMessage  = function(s) _G._lastError = s end
+statusMessage = function(s) _G._lastStatus = s end
+message       = function(s) _G._lastMessage = s end
+version = { protocolVersion = 1, ircPipe = "1.0" }
+emu = { registerexit = function() end }
+gui = { register = function() end, text = function() end }
+
 local tests = {}
 function describe(name, fn) table.insert(tests, {name=name, fn=fn}) end
 function assertEq(actual, expected, msg)
