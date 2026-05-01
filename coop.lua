@@ -1,3 +1,6 @@
+-- Make vendored libraries (json.lua) findable on FCEUX's Lua
+package.path = package.path .. ";.\\vendor\\?.lua;./vendor/?.lua"
+
 class   = require "pl.class"
 pretty  = require "pl.pretty"
 List    = require "pl.List"
