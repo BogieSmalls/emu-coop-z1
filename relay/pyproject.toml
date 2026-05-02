@@ -1,0 +1,19 @@
+[project]
+name = "emu-coop-relay"
+version = "0.1.0"
+description = "Relay daemon for emu-coop"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["relay"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
