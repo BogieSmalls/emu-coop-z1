@@ -506,5 +506,6 @@ end
 
 function Driver:childWake() end
 function Driver:childTick() end
+function Driver:resync() end  -- no-op; subclasses override
 function Driver:handleTable(t) end
 function Driver:handleFailure(s, err) end

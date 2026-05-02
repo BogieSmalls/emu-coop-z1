@@ -137,6 +137,11 @@ function GameDriver:_init(spec, forceSend)
 	self.didCache = false
 end
 
+function GameDriver:resync()
+	self.didCache = false
+	self.forceSend = true
+end
+
 function GameDriver:checkFirstRunning() -- Do first-frame bootup-- only call if isRunning()
 	if not self.didCache then
 		if driverDebug then print("First moment running") end
