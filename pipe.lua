@@ -250,11 +250,14 @@ function Pipe:_handleFrame(frame)
       self.state = "ESTABLISHED"
       statusMessage(nil)
       message("Connected to partner")
-      if self.driver and self.driver.wake then self.driver:wake(self) end
       if self._postReconnect then
+        -- Reconnect: don't re-wake the driver (would re-register memory.registerwrite
+        -- callbacks). Just trigger a state re-sync.
         self._postReconnect = false
         if self.driver and self.driver.resync then self.driver:resync() end
         message("Reconnected — re-syncing state")
+      else
+        if self.driver and self.driver.wake then self.driver:wake(self) end
       end
     end
   elseif frame.kind == "abort" then
@@ -333,6 +336,12 @@ function Pipe:_reconnectTick()
     self.helloReceived = false
     self.state = "TRANSPORT_READY"
     self:_initFraming()
+    -- Reset heartbeat timestamps so an old _lastRx (from before the drop)
+    -- doesn't immediately re-trigger the silence timeout on the fresh socket.
+    self._lastRx = now
+    self._lastPing = now
+    -- Reset attempt counter so a future drop starts the backoff schedule fresh.
+    self._reconnectAttempt = 0
     self:_sendHello()
     -- After successful reconnect handshake, trigger Driver:resync.
     self._postReconnect = true

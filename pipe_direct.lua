@@ -83,6 +83,12 @@ end
 function DirectPipe:_reconnect_transport()
   local socket = require("socket")
   if self.data.host then
+    -- Close any leftover listener from a prior failed accept-poll cycle
+    -- so we don't hit "address already in use" on bind.
+    if self._listener then
+      pcall(function() self._listener:close() end)
+      self._listener = nil
+    end
     -- Re-listen
     local listener = socket.tcp()
     listener:bind("*", self.data.port)
