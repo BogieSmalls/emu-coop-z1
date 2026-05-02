@@ -202,8 +202,14 @@ end
 function Pipe:_fail(msg)
   if self.state == "FAILED" or self.state == "CLOSED" then return end
   errorMessage(msg)
-  self.state = "FAILED"
   if self.server then pcall(function() self.server:close() end) end
+  self.server = nil
+  if self._reconnectEnabled then
+    self.state = "RECONNECTING"
+    self._nextRetryAt = (self._clock and self._clock() or os.time()) + self:_nextBackoff()
+  else
+    self.state = "FAILED"
+  end
 end
 
 function Pipe:_pumpFrames()
@@ -245,6 +251,11 @@ function Pipe:_handleFrame(frame)
       statusMessage(nil)
       message("Connected to partner")
       if self.driver and self.driver.wake then self.driver:wake(self) end
+      if self._postReconnect then
+        self._postReconnect = false
+        if self.driver and self.driver.resync then self.driver:resync() end
+        message("Reconnected — re-syncing state")
+      end
     end
   elseif frame.kind == "abort" then
     self:_fail("Partner aborted: " .. tostring(frame.reason))
@@ -295,6 +306,38 @@ function Pipe:_heartbeatTick()
   if (now - self._lastPing) > Pipe.HEARTBEAT_INTERVAL then
     self:_sendFrame({kind="ping"})
     self._lastPing = now
+  end
+end
+
+function Pipe:_initReconnect()
+  self._reconnectAttempt = 0
+  self._nextRetryAt = nil
+end
+
+Pipe.BACKOFF_SCHEDULE = {1, 2, 4, 8, 16, 30}
+
+function Pipe:_nextBackoff()
+  self._reconnectAttempt = (self._reconnectAttempt or 0) + 1
+  local idx = self._reconnectAttempt
+  return Pipe.BACKOFF_SCHEDULE[idx] or 30
+end
+
+function Pipe:_reconnectTick()
+  if self.state ~= "RECONNECTING" then return end
+  local now = self._clock and self._clock() or os.time()
+  if not self._nextRetryAt or now < self._nextRetryAt then return end
+  statusMessage("Reconnecting (attempt " .. ((self._reconnectAttempt or 0) + 1) .. ")...")
+  local ok = self:_reconnect_transport()
+  if ok then
+    self.helloSent = false
+    self.helloReceived = false
+    self.state = "TRANSPORT_READY"
+    self:_initFraming()
+    self:_sendHello()
+    -- After successful reconnect handshake, trigger Driver:resync.
+    self._postReconnect = true
+  else
+    self._nextRetryAt = now + self:_nextBackoff()
   end
 end
 
