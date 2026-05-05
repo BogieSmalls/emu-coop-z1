@@ -19,6 +19,7 @@ PORT = int(os.environ.get("RELAY_PORT", "9999"))
 MAX_PAIRS = int(os.environ.get("RELAY_MAX_PAIRS", "100"))
 TTL_SECONDS = int(os.environ.get("RELAY_TTL_SECONDS", "600"))
 IDLE_SECONDS = int(os.environ.get("RELAY_IDLE_SECONDS", "30"))
+GRACE_SECONDS = int(os.environ.get("RELAY_GRACE_SECONDS", "60"))
 
 
 @dataclass
@@ -37,6 +38,8 @@ class Session:
     peers: dict = field(default_factory=dict)  # peer_id -> Peer
     state: str = "WAITING"
     ttl_task: Optional[asyncio.Task] = None
+    grace_task: Optional[asyncio.Task] = None
+    broken_peer_id: Optional[str] = None  # peer_id that dropped during HALF_BROKEN
 
 
 _sessions: dict = {}  # code -> Session
@@ -114,7 +117,7 @@ async def handle_client(reader, writer):
 
     if sess.state == "WAITING":
         if peer_id in sess.peers:
-            # Same peer re-arriving (should be rare without peer-id reconnect logic).
+            # Same peer re-arriving (still waiting, partner hadn't shown)
             old = sess.peers[peer_id]
             if old.watcher_task:
                 old.watcher_task.cancel()
@@ -141,7 +144,71 @@ async def handle_client(reader, writer):
         return
 
     if sess.state == "PAIRED":
-        # Third party with different peer_id (matching peer_id reconnect is Task 17)
+        if peer_id in sess.peers:
+            # Reconnect of an existing paired peer; swap socket.
+            old = sess.peers[peer_id]
+            if old.forward_task:
+                old.forward_task.cancel()
+            try:
+                old.writer.close()
+            except Exception:
+                pass
+            sess.peers[peer_id] = peer
+            # Send partner-reconnected to the other peer
+            other = next(p for pid, p in sess.peers.items() if pid != peer_id)
+            try:
+                other.writer.write(encode_frame({"kind": "partner-reconnected", "peer_id": peer_id}))
+                await other.writer.drain()
+            except Exception:
+                pass
+            # Send joined to the rejoining peer so it can re-do its hello
+            try:
+                peer.writer.write(encode_frame({"kind": "joined"}))
+                await peer.writer.drain()
+            except Exception:
+                pass
+            # Restart forwarding for the rejoining peer
+            peer.forward_task = asyncio.create_task(_forward(peer, other))
+            # Restart partner's forward task too if it ended on the dead socket
+            if not other.forward_task or other.forward_task.done():
+                other.forward_task = asyncio.create_task(_forward(other, peer))
+            await peer.done.wait()
+            await _on_peer_disconnect(sess, peer)
+            return
+        # Third party with different peer_id
+        await send_abort_close(writer, "code in use")
+        return
+
+    if sess.state == "HALF_BROKEN":
+        if peer_id == sess.broken_peer_id:
+            # Returning peer within grace window. Restore to PAIRED.
+            if sess.grace_task:
+                sess.grace_task.cancel()
+                sess.grace_task = None
+            sess.peers[peer_id] = peer
+            sess.state = "PAIRED"
+            sess.broken_peer_id = None
+            other = next(iter(sess.peers[pid] for pid in sess.peers if pid != peer_id))
+            # Send partner-reconnected to the survivor
+            try:
+                other.writer.write(encode_frame({"kind": "partner-reconnected", "peer_id": peer_id}))
+                await other.writer.drain()
+            except Exception:
+                pass
+            # Send joined to the rejoining peer
+            try:
+                peer.writer.write(encode_frame({"kind": "joined"}))
+                await peer.writer.drain()
+            except Exception:
+                pass
+            # Start forwarding for the new peer's socket; partner's forward task should still be alive
+            peer.forward_task = asyncio.create_task(_forward(peer, other))
+            if not other.forward_task or other.forward_task.done():
+                other.forward_task = asyncio.create_task(_forward(other, peer))
+            await peer.done.wait()
+            await _on_peer_disconnect(sess, peer)
+            return
+        # Different peer_id during HALF_BROKEN — reject
         await send_abort_close(writer, "code in use")
         return
 
@@ -215,13 +282,18 @@ async def _on_peer_disconnect(sess, peer):
         _sessions.pop(sess.code, None)
         return
     if sess.state == "PAIRED":
-        # Without HALF_BROKEN (Task 17), a disconnect tears down the whole session.
+        # Enter HALF_BROKEN: keep partner around for the grace window
+        dropped_id = peer.peer_id
+        sess.peers.pop(dropped_id, None)
+        sess.state = "HALF_BROKEN"
+        sess.broken_peer_id = dropped_id
+        sess.grace_task = asyncio.create_task(_grace_expire(sess))
+        return
+    if sess.state == "HALF_BROKEN":
+        # Survivor also dropped; tear down completely
+        if sess.grace_task:
+            sess.grace_task.cancel()
         for p in list(sess.peers.values()):
-            if p is peer:
-                continue
-            if p.forward_task:
-                p.forward_task.cancel()
-            p.done.set()  # unblock that peer's handle_client
             try:
                 p.writer.close()
             except Exception:
@@ -235,6 +307,16 @@ async def _ttl_expire(sess):
         await asyncio.sleep(TTL_SECONDS)
         for p in sess.peers.values():
             await send_abort_close(p.writer, "no partner")
+        _sessions.pop(sess.code, None)
+    except asyncio.CancelledError:
+        pass
+
+
+async def _grace_expire(sess):
+    try:
+        await asyncio.sleep(GRACE_SECONDS)
+        for p in sess.peers.values():
+            await send_abort_close(p.writer, "partner did not return")
         _sessions.pop(sess.code, None)
     except asyncio.CancelledError:
         pass

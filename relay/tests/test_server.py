@@ -84,3 +84,48 @@ async def test_byte_forwarding(relay_running):
     assert f["kind"] == "hello"
     assert f["v"] == 1
     for w in (w1, w2): w.close()
+
+
+async def test_half_broken_rejoin_within_grace(relay_running, monkeypatch):
+    monkeypatch.setattr(server, "GRACE_SECONDS", 5)
+    host, port = relay_running
+    r1, w1 = await open_peer(host, port)
+    r2, w2 = await open_peer(host, port)
+    w1.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p1"}))
+    w2.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p2"}))
+    await asyncio.gather(w1.drain(), w2.drain())
+    await read_frame(r1); await read_frame(r2)  # joined
+
+    # Peer 1 disconnects.
+    w1.close(); await w1.wait_closed()
+    await asyncio.sleep(0.5)  # allow relay to notice
+
+    # Peer 1 reconnects within grace window.
+    r1b, w1b = await open_peer(host, port)
+    w1b.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p1"}))
+    await w1b.drain()
+    f1b = await asyncio.wait_for(read_frame(r1b), 3)
+    assert f1b["kind"] == "joined"
+
+    # Peer 2 should see partner-reconnected.
+    f2 = await asyncio.wait_for(read_frame(r2), 3)
+    assert f2["kind"] == "partner-reconnected"
+    assert f2["peer_id"] == "p1"
+    w1b.close(); w2.close()
+
+
+async def test_grace_expires_closes_survivor(relay_running, monkeypatch):
+    monkeypatch.setattr(server, "GRACE_SECONDS", 1)
+    host, port = relay_running
+    r1, w1 = await open_peer(host, port)
+    r2, w2 = await open_peer(host, port)
+    w1.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p1"}))
+    w2.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p2"}))
+    await asyncio.gather(w1.drain(), w2.drain())
+    await read_frame(r1); await read_frame(r2)
+    w1.close(); await w1.wait_closed()
+    # Peer 2 should receive abort within ~1 second.
+    f = await asyncio.wait_for(read_frame(r2), 3)
+    assert f["kind"] == "abort"
+    assert "did not return" in f["reason"].lower()
+    w2.close()

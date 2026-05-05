@@ -51,8 +51,7 @@ function RelayPipe:_sendJoin()
   self:_sendFrame({kind="join", code=self.data.code, peer_id=self.peer_id})
 end
 
--- Override _handleFrame to intercept relay-only kinds (joined).
--- partner-reconnected handling is Task 17.
+-- Override _handleFrame to intercept relay-only kinds (joined, partner-reconnected).
 function RelayPipe:_handleFrame(frame)
   self._lastFrameKind = frame.kind
   if self._clock then self._lastRx = self._clock() end
@@ -63,6 +62,18 @@ function RelayPipe:_handleFrame(frame)
     self.state = "JOINED"
     statusMessage("Paired; saying hello...")
     self:_sendHello()
+    return
+  end
+
+  if frame.kind == "partner-reconnected" then
+    -- Surviving peer: partner just rejoined. Reset hello state, await fresh
+    -- hello, then resync state.
+    self.helloSent = false
+    self.helloReceived = false
+    self.state = "JOINED"
+    self:_sendHello()
+    self._postReconnect = true
+    statusMessage("Partner reconnected; re-syncing...")
     return
   end
 

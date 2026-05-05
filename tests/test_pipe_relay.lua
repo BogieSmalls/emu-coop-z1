@@ -38,3 +38,26 @@ describe("RelayPipe handles joined frame and proceeds to send hello", function()
   for _ = 1, 5 do got = reader:tick(); if got then break end end
   assertEq(got.kind, "hello")
 end)
+
+describe("RelayPipe handles partner-reconnected by re-doing hello", function()
+  local sa, sb = mock.makePair()
+  sa:settimeout(0); sb:settimeout(0)
+  local pipe = RelayPipe({host_addr="127.0.0.1", port=9999, code="abcdef"})
+  pipe.driver = {wake=function() end, handleTable=function() end, tick=function() end, resync=function() end}
+  pipe.server = sa
+  pipe:_initFraming()
+  pipe:_sendJoin()
+  Frame.newReader(sb):tick()  -- consume join
+  Frame.writeFrame(sb, '{"kind":"joined"}')
+  for _ = 1, 5 do pipe:_pumpFrames() end
+  Frame.newReader(sb):tick()  -- consume initial hello
+
+  -- Now simulate partner reconnection: relay sends partner-reconnected
+  Frame.writeFrame(sb, '{"kind":"partner-reconnected","peer_id":"abc"}')
+  pipe.helloSent = false  -- the prior hello was already sent and consumed
+  pipe.helloReceived = false
+  for _ = 1, 5 do pipe:_pumpFrames() end
+
+  -- Pipe should re-send hello and set _postReconnect
+  assertTrue(pipe._postReconnect, "expected _postReconnect to be set")
+end)
