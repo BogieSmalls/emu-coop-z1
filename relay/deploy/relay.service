@@ -1,0 +1,20 @@
+[Unit]
+Description=emu-coop relay daemon
+After=network.target
+
+[Service]
+Type=simple
+User=relay
+Group=relay
+WorkingDirectory=/opt/emu-coop-relay
+Environment="RELAY_PORT=9999"
+Environment="RELAY_MAX_PAIRS=100"
+Environment="RELAY_TTL_SECONDS=600"
+Environment="RELAY_GRACE_SECONDS=60"
+Environment="RELAY_IDLE_SECONDS=30"
+ExecStart=/opt/emu-coop-relay/.venv/bin/python -m relay
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
