@@ -13,7 +13,7 @@ tablex  = require("pl.tablex")
 errorMessage  = function(s) io.stderr:write("ERR: " .. tostring(s) .. "\n") end
 statusMessage = function(s) io.stderr:write("STATUS: " .. tostring(s) .. "\n") end
 message       = function(s) io.stderr:write("MSG: " .. tostring(s) .. "\n") end
-version = { protocolVersion = 1, ircPipe = "1.0" }
+version = { protocolVersion = 1 }
 emu = { registerexit = function() end }
 gui = { register = function() end, text = function() end }
 

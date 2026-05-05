@@ -17,10 +17,6 @@ version = {
 	-- Protocol version for new Pipe transports (Direct/Relay). Bump on wire-format break.
 	protocolVersion = 1,
 
-	-- Which version of the way of shuttling data over IRC is this?
-	-- Increment this number if you change the handshake or the way tables are encoded into text in pipe.lua
-	ircPipe = "1.0",
-
 	-- Format/capabilities used for modes in the modes/ directory
 	-- Increment this number if you change driver.lua in a way that means things are possible in a modes/ file that weren't before
 	modeFormat = "1.2"

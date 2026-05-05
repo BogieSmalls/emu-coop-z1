@@ -29,9 +29,6 @@ function connectionDialog()
 	}
 end
 
--- Backwards-compatible alias for any code still calling the old name.
-ircDialog = connectionDialog
-
 function selectDialog(specs, reason)
 	local names = ""
 	for i, v in ipairs(specs) do

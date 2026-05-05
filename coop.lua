@@ -47,7 +47,7 @@ if emu.emulating() then
 	if spec then -- If user did not hit cancel
 		print("Playing " .. spec.name)
 
-		local data = ircDialog()
+		local data = connectionDialog()
 
 		if data then -- If user did not hit cancel
 			local failed = false
@@ -55,7 +55,7 @@ if emu.emulating() then
 			function scrub(invalid) errorMessage(invalid .. " not valid") failed = true end
 
 			-- Strip out stray whitespace
-			for _, v in ipairs({"server", "host_addr", "code", "nick", "partner"}) do
+			for _, v in ipairs({"host_addr", "code"}) do
 				if data[v] then data[v] = data[v]:gsub("%s+", "") end
 			end
 
@@ -68,13 +68,6 @@ if emu.emulating() then
 				if not nonempty(data.host_addr) then scrub("Relay address")
 				elseif not nonzero(data.port) then scrub("Port")
 				elseif not nonempty(data.code) or #data.code < 6 then scrub("Session code (must be 6+ chars)")
-				end
-			elseif data.server then
-				-- Legacy IRC validation (kept until Phase 8 cleanup)
-				if not nonempty(data.server) then scrub("Server")
-				elseif not nonzero(data.port) then scrub("Port")
-				elseif not nonempty(data.nick) then scrub("Nick")
-				elseif not nonempty(data.partner) then scrub("Partner nick")
 				end
 			end
 
@@ -95,14 +88,6 @@ if emu.emulating() then
 						port = data.port,
 						code = data.code,
 					}, mainDriver):wake()
-				elseif data.server then
-					-- Legacy IRC fallback (kept until Phase 8 cleanup)
-					local socket = require "socket"
-					local server = socket.tcp()
-					local result, err = server:connect(data.server, data.port)
-					if not result then errorMessage("Could not connect to IRC: " .. err) failed = true return end
-					statusMessage("Connecting to server...")
-					IrcPipe(data, mainDriver):wake(server)
 				else
 					errorMessage("Unknown transport in dialog result")
 					failed = true

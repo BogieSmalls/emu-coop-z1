@@ -11,7 +11,7 @@ tablex  = require("pl.tablex")
 errorMessage  = function(s) _G._lastError = s end
 statusMessage = function(s) _G._lastStatus = s end
 message       = function(s) _G._lastMessage = s end
-version = { protocolVersion = 1, ircPipe = "1.0" }
+version = { protocolVersion = 1 }
 emu = { registerexit = function() end }
 gui = { register = function() end, text = function() end }
 
