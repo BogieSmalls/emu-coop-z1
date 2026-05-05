@@ -325,6 +325,12 @@ function Pipe:_nextBackoff()
   return Pipe.BACKOFF_SCHEDULE[idx] or 30
 end
 
+-- Default post-reconnect handshake: send hello immediately. RelayPipe
+-- overrides this to send join first (and let the joined frame trigger hello).
+function Pipe:_postReconnectHandshake()
+  self:_sendHello()
+end
+
 function Pipe:_reconnectTick()
   if self.state ~= "RECONNECTING" then return end
   local now = self._clock and self._clock() or os.time()
@@ -342,7 +348,7 @@ function Pipe:_reconnectTick()
     self._lastPing = now
     -- Reset attempt counter so a future drop starts the backoff schedule fresh.
     self._reconnectAttempt = 0
-    self:_sendHello()
+    self:_postReconnectHandshake()
     -- After successful reconnect handshake, trigger Driver:resync.
     self._postReconnect = true
   else

@@ -83,6 +83,8 @@ function RelayPipe:tick()
 end
 
 function RelayPipe:_reconnect_transport()
+  -- Symmetric with DirectPipe: just dial. The base _reconnectTick will
+  -- _initFraming and call _postReconnectHandshake (overridden below).
   local socket = require("socket")
   local client = socket.tcp()
   client:settimeout(2)
@@ -90,10 +92,14 @@ function RelayPipe:_reconnect_transport()
   if not ok then return false end
   client:settimeout(0)
   self.server = client
-  self:_initFraming()
+  return true
+end
+
+-- Override the post-reconnect handshake: relay needs join -> joined -> hello,
+-- not hello directly. The joined frame handler in _handleFrame triggers hello.
+function RelayPipe:_postReconnectHandshake()
   self.joined = false
   self:_sendJoin()
-  return true  -- transport up; rest happens via frame-driven state transitions
 end
 
 function RelayPipe:exit()
