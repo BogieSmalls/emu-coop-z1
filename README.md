@@ -8,6 +8,36 @@ Each game you want to use this with requires a "mode" file in the modes/ directo
 
 To run, run coop.lua. To run with additional debug messages (more verbose errors, and visibility for every message sent) run debug.lua instead.
 
+## Connection modes
+
+emu-coop supports two transports:
+
+- **Direct** — peer-to-peer TCP. One player hosts (listens on a port), the other connects to their address. Best for LAN co-op or players using Tailscale / ZeroTier / Hamachi (which give a routable virtual IP without router setup).
+- **Relay** — both players connect outbound to a small Python relay daemon. No port forwarding required. Self-hosters can run their own (see [relay/README.md](relay/README.md)) on a $5/mo VPS or an Oracle Cloud Always Free VM.
+
+When you launch `coop.lua`, the connection dialog asks which transport to use.
+
+### Quick start (Relay, easiest)
+
+1. Both players agree on a session code (any string >= 6 chars, e.g. `pancakes123`). Share via Discord/etc.
+2. Both players launch FCEUX -> load ROM -> load `coop.lua`.
+3. In the connection dialog: Transport=Relay, Host address=`<relay public IP>`, Port=`9999`, Session code=your shared code. Click OK.
+4. Both screens display "Connected to partner" within ~1 second.
+
+### Quick start (Direct, LAN)
+
+1. The host player runs `ipconfig` (Windows) or `ifconfig` (mac/linux) to find their LAN IP.
+2. Host: launch `coop.lua`, Transport=Direct, Host address=`0.0.0.0`, Port=`9999`, Are you the host?=Yes.
+3. Other player: launch `coop.lua`, Transport=Direct, Host address=`<host's LAN IP>`, Port=`9999`, Are you the host?=No.
+
+## What changed (v1.3)
+
+- IRC is no longer used. Replaced by Direct + Relay transports.
+- Connection drops auto-recover within ~30 seconds without restarting either emulator (heartbeat-driven detection + automatic reconnect with exponential backoff).
+- "Restarting after a crash?" still works for full save-and-reload recovery in case the auto-recovery doesn't catch all desyncs.
+- Wire format is now length-prefixed JSON frames (capped at 4 KiB), designed so a future PC-side bridge process can speak the same protocol — opening the door to non-Lua peers (Bizhawk via memory-poll bridge, real NES via Everdrive Pro N8 USB bridge, etc.).
+- The relay daemon is a separate, stateless asyncio TCP server in `relay/` — see `relay/README.md` for deployment.
+
 ## Author / License
 
 These files were written by <<andi.m.mcclure@gmail.com>>. The "tloz_" modes (Zelda 1) were written by megmacAttack.
