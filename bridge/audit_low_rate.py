@@ -131,17 +131,25 @@ def main() -> None:
             consec_timeouts = 0
 
     total_t = time.time() - t_start
+    aborted = consec_timeouts >= 5
     print()
     print(f"# Summary: {successes} successes / {timeouts} timeouts in {total_t:.1f}s")
-    if successes == args.reads:
-        print(f"# RESULT: All {args.reads} reads completed successfully.")
-        print(f"#         Pacing-based theory supported (game survives slow polling).")
-    elif successes < args.reads and timeouts > 0:
-        print(f"# RESULT: Game crashed after {successes} reads.")
-        if successes >= 90 and successes <= 105:
-            print(f"#         Count is in the 'always-crashes-at-97' range; suggests count-based bug.")
+    if aborted:
+        # 5+ consecutive timeouts = cart genuinely silent (game probably crashed)
+        last_ok = args.reads - timeouts  # crude: last ok read index
+        print(f"# RESULT: Cart went silent (>=5 consecutive timeouts).")
+        if 90 <= successes <= 105:
+            print(f"#         Threshold matches the 'always-crashes-at-97' rate-dependent pattern.")
         else:
-            print(f"#         Different threshold than the 97-read pattern; investigate further.")
+            print(f"#         Threshold {successes} differs from 97-read pattern; new behavior.")
+    elif timeouts == 0:
+        print(f"# RESULT: All {args.reads} reads completed successfully.")
+        print(f"#         Game tolerates polling at this rate without any hiccups.")
+    else:
+        # Some timeouts but no consecutive run -> environmental hiccups, not a crash
+        print(f"# RESULT: Test completed; {timeouts} transient timeout(s).")
+        print(f"#         No consecutive-timeout streak >= 5, so no crash detected.")
+        print(f"#         Transient timeouts are likely environmental (e.g., screen transitions).")
 
 
 if __name__ == "__main__":
