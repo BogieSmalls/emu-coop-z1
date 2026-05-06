@@ -14,7 +14,7 @@ function connectionDialog()
 		"Are you the host? (Direct only) %" .. optionLetter .. "|No|Yes|\n" ..
 		"%t\n" ..
 		"Are you restarting\rafter a crash? %" .. optionLetter .. "|No|Yes|\n",
-	    0, "127.0.0.1", 9999, "", 0, 0)
+	    1, "129.158.62.225", 9999, "", 0, 0)
 
 	if 0 == res then return nil end
 
