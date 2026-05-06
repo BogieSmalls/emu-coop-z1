@@ -69,19 +69,26 @@ class MockCCServer:
             idx += total
 
     def _handle_mem_wr(self, payload: bytes) -> None:
-        """A MEM_WR to ADDR_FIFO carries an inner CC frame: L, MID, ACTION, body.
-        Per the CC convention, L = 1 + body_length, which equals the total CC
-        frame length (including the L byte itself)."""
+        """A MEM_WR to ADDR_FIFO carries an inner CC frame:
+            [L, MID, ACTION, ...payload, CHECKSUM]
+        where L = body length INCLUDING checksum, total frame length = 1 + L.
+        Checksum = sum(MID + ACTION + payload) mod 256."""
         if not payload:
             return
         L = payload[0]
-        if L != len(payload):
+        # Total frame length is 1 (L byte) + L (body+checksum)
+        if L + 1 != len(payload):
             return
-        if len(payload) < 3:
+        if len(payload) < 4:  # need at least L + mid + action + checksum
             return
         mid = payload[1]
         action = payload[2]
-        body = payload[3:]
+        body = payload[3:-1]  # everything between action and checksum
+        checksum = payload[-1]
+        # Validate checksum: sum of MID + ACTION + payload mod 256
+        expected = (mid + action + sum(body)) & 0xFF
+        if checksum != expected:
+            return
         if action == 0x00:
             # Read individual addresses: count + 2-byte addr each
             count = body[0]
@@ -110,9 +117,6 @@ class MockCCServer:
             data = body[3:3 + count]
             self.ram[base:base + len(data)] = data
             self._respond(mid, 0x03, b"\x01")
-        elif action == 0x05:
-            # Return: ACK an outstanding read
-            self._respond(mid, 0x00, b"\x01")
 
     def _respond(self, mid: int, action: int, values: bytes) -> None:
         """Push a CC response frame back to the bridge: 0x20, mid, action, values."""

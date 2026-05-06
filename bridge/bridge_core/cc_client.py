@@ -4,14 +4,26 @@ Wraps a serial.Serial-like object and exposes methods to send CC frames
 (read/write/freeze) and parse responses.
 
 CC frame format (host -> cart, wrapped in a USB MEM_WR to ADDR_FIFO):
-    L (1 byte) = total body length + 1
-    MID (1 byte) = monotonic message id, 1..255
-    ACTION (1 byte) = 0x00 read addrs, 0x01 read array, 0x02 write pairs,
-                       0x03 write array, 0x04 freeze, 0x05 return
-    body...
+    L (1 byte)       = body length INCLUDING the trailing checksum byte
+    MID (1 byte)     = monotonic message id, 1..255
+    ACTION (1 byte)  = 0x00 read addrs, 0x01 read array, 0x02 write pairs,
+                       0x03 write array, 0x04 freeze, 0xFE version
+    payload...
+    CHECKSUM (1 byte) = sum(MID + ACTION + payload) mod 256
+
+The cart's NMI hook reads the L byte then loops L times to consume the body.
+If we send L = len(body without checksum) the cart's loop falls one byte short
+of the frame and pulls the leading byte of the next frame, snowballing into a
+crash after ~97 transactions. This is the protocol's actual contract, recovered
+by reverse-engineering Crowd Control's official EverDriveN8ProConnector.
 
 CC response (cart -> host):
-    0x20, MID, ACTION, values...
+    [0x2B, 0xD4, 0x22, 0xDD] (4-byte EDIO write prelude)
+    + size byte (= N + 3)
+    + 0x00, 0x20
+    + MID, ACTION
+    + values (N bytes)
+We only scan for the [0x20, MID, ACTION, ...] tail in poll_response.
 """
 from __future__ import annotations
 
@@ -43,10 +55,12 @@ def _u32le(v: int) -> bytes:
 
 def _make_cc_frame(mid: int, action: int, payload: bytes) -> bytes:
     body = bytes((mid & 0xFF, action & 0xFF)) + payload
-    L = 1 + len(body)
+    checksum = sum(body) & 0xFF
+    body_with_checksum = body + bytes((checksum,))
+    L = len(body_with_checksum)
     if L > 255:
         raise ValueError(f"CC frame too large: {L}")
-    return bytes((L,)) + body
+    return bytes((L,)) + body_with_checksum
 
 
 def _strip_status_pairs(b: bytes) -> bytes:

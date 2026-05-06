@@ -61,3 +61,25 @@ def test_poll_response_returns_none_on_timeout():
     # Don't issue a request; nothing should be in the RX buffer
     result = client.poll_response(timeout_ms=10)
     assert result is None
+
+
+def test_frame_includes_checksum_byte():
+    """Regression guard for the missing-checksum bug that caused the cart to
+    pull one byte from the next frame in FIFO and crash after ~97 transactions.
+    A correctly framed Read8 (action 0x00, count=1, addr $0042) is:
+        [L=6, mid=1, action=0, count=1, addr_lo=0x42, addr_hi=0x00, checksum=0x44]
+    where checksum = (mid + action + count + addr_lo + addr_hi) mod 256.
+    """
+    from bridge_core.cc_client import _make_cc_frame
+    payload = bytes((1, 0x42, 0x00))  # count=1, addr=$0042
+    frame = _make_cc_frame(mid=1, action=0x00, payload=payload)
+    # L = body length WITH checksum = 2 (mid+action) + 3 (payload) + 1 (checksum) = 6
+    assert frame[0] == 6
+    assert frame[1] == 1     # mid
+    assert frame[2] == 0x00  # action
+    assert frame[3] == 1     # count
+    assert frame[4] == 0x42  # addr_lo
+    assert frame[5] == 0x00  # addr_hi
+    expected_checksum = (1 + 0x00 + 1 + 0x42 + 0x00) & 0xFF
+    assert frame[6] == expected_checksum
+    assert len(frame) == 7
