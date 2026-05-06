@@ -104,5 +104,5 @@ class ROMSetupScreen(ctk.CTkFrame):
 
     @staticmethod
     def _load_patch() -> bytes:
-        path = files("bridge_core").joinpath("patches/zelda_cc.ips")
+        path = files("bridge_core").joinpath("patches/zelda_emu_coop_plus.ips")
         return path.read_bytes()

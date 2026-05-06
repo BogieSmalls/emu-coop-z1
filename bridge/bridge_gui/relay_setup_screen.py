@@ -52,15 +52,16 @@ class RelaySetupScreen(ctk.CTkFrame):
         self._code_entry.grid(row=3, column=1, sticky="w", padx=10, pady=8)
         self._code_var.trace_add("write", lambda *_: self._update_connect_state())
 
-        # COM port
+        # COM port (EDN8 prioritized at the top of the list)
         ctk.CTkLabel(form, text="COM port:").grid(row=4, column=0, sticky="e", padx=10, pady=8)
-        com_ports = self._detect_com_ports()
-        self._com_var = ctk.StringVar(value=com_ports[0] if com_ports else "")
-        ctk.CTkOptionMenu(
+        com_labels = self._detect_com_port_labels()
+        self._com_var = ctk.StringVar(value=com_labels[0] if com_labels else "")
+        self._com_menu = ctk.CTkOptionMenu(
             form,
             variable=self._com_var,
-            values=com_ports if com_ports else ["(none detected)"],
-        ).grid(row=4, column=1, sticky="w", padx=10, pady=8)
+            values=com_labels if com_labels else ["(none detected)"],
+        )
+        self._com_menu.grid(row=4, column=1, sticky="w", padx=10, pady=8)
 
         # Force send
         self._force_send_var = ctk.BooleanVar(value=False)
@@ -87,8 +88,30 @@ class RelaySetupScreen(ctk.CTkFrame):
         )
         self._connect_btn.pack(side="left", padx=5)
 
+    # EDN8 Pro uses an STM32 USB CDC chip with VID 0x0483 (STMicroelectronics).
+    EDN8_VID = 0x0483
+
     def _detect_com_ports(self) -> list[str]:
-        return [p.device for p in serial.tools.list_ports.comports()]
+        """Return COM ports with the likely EDN8 first, others after.
+        Each entry is the bare device name (e.g. 'COM5') so existing UI bindings keep working;
+        the dropdown's first item is what's preselected."""
+        ports = list(serial.tools.list_ports.comports())
+        edn8 = [p for p in ports if (p.vid or 0) == self.EDN8_VID]
+        others = [p for p in ports if (p.vid or 0) != self.EDN8_VID]
+        return [p.device for p in edn8 + others]
+
+    def _detect_com_port_labels(self) -> list[str]:
+        """Same as _detect_com_ports but with friendly labels for the dropdown
+        (e.g. 'COM5  -  EDN8 (USB Serial Device)')."""
+        ports = list(serial.tools.list_ports.comports())
+        edn8 = [p for p in ports if (p.vid or 0) == self.EDN8_VID]
+        others = [p for p in ports if (p.vid or 0) != self.EDN8_VID]
+        out: list[str] = []
+        for p in edn8:
+            out.append(f"{p.device}  -  EDN8 ({p.description})")
+        for p in others:
+            out.append(f"{p.device}  -  {p.description}")
+        return out
 
     def _update_connect_state(self) -> None:
         code = self._code_var.get().strip()
@@ -109,20 +132,28 @@ class RelaySetupScreen(ctk.CTkFrame):
         except ValueError:
             self._status_label.configure(text="Port must be a number")
             return
+        # Extract bare COM device name from label like "COM5  -  EDN8 (USB Serial Device)"
+        com_label = self._com_var.get()
+        com_port = com_label.split(" ", 1)[0] if com_label else ""
         # Stash session config on the controller
         self.controller.session_config = {
             "mode": self._mode_var.get(),
             "relay": self._relay_var.get(),
             "relay_port": port,
             "code": self._code_var.get().strip(),
-            "com_port": self._com_var.get(),
+            "com_port": com_port,
             "force_send": self._force_send_var.get(),
         }
         self.controller.show_screen("session")
 
     def on_show(self) -> None:
         # Re-detect COM ports each time (user may have plugged in cart)
-        com_ports = self._detect_com_ports()
-        if com_ports and self._com_var.get() not in com_ports:
-            self._com_var.set(com_ports[0])
+        com_labels = self._detect_com_port_labels()
+        if com_labels:
+            self._com_menu.configure(values=com_labels)
+            if self._com_var.get() not in com_labels:
+                self._com_var.set(com_labels[0])
+        else:
+            self._com_menu.configure(values=["(none detected)"])
+            self._com_var.set("(none detected)")
         self._update_connect_state()

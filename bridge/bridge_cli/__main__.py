@@ -31,7 +31,7 @@ POLL_PERIOD = 1.0 / POLL_HZ
 
 def cmd_patch(args: argparse.Namespace) -> int:
     src = Path(args.input).read_bytes()
-    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_cc.ips"
+    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_emu_coop_plus.ips"
     patch_bytes = patch_path.read_bytes()
     if ips.is_patched(src, patch_bytes):
         print(f"Already patched: {args.input}")

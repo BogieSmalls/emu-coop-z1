@@ -10,7 +10,7 @@ a = Analysis(
     pathex=[str(Path('.').resolve())],
     binaries=[],
     datas=[
-        ('bridge_core/patches/zelda_cc.ips', 'bridge_core/patches'),
+        ('bridge_core/patches/zelda_emu_coop_plus.ips', 'bridge_core/patches'),
     ],
     hiddenimports=[
         'bridge_core.modes.tloz_all',

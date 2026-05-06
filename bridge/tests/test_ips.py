@@ -48,7 +48,7 @@ def test_invalid_header_raises():
 
 def test_zelda_cc_patch_loads():
     """The vendored Z1 CC patch should be parseable."""
-    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_cc.ips"
+    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_emu_coop_plus.ips"
     raw = patch_path.read_bytes()
     records = list(ips.parse(io.BytesIO(raw)))
     assert len(records) > 0

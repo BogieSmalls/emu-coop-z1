@@ -134,9 +134,34 @@ def experiment_h2_save_regs(rom: bytearray) -> list[tuple[int, bytes, bytes]]:
     return changes
 
 
+def experiment_emu_coop_plus_brand(rom: bytearray) -> list[tuple[int, bytes, bytes]]:
+    """Rebrand 'CROWD CONTROL' -> 'EMU-COOP-PLUS' in the patched ROM.
+
+    Z1 uses tile-graphics text encoding (A=$0A, B=$0B, ..., '-'=$2F, ' '=$24).
+    The CC patch wrote 'CROWD CONTROL' at file 0x01AAFC. Both strings are
+    13 chars / 13 bytes, so this is a clean drop-in replacement.
+
+    Encoded bytes (verified against z1rdecomp/Z1R.Core/Patching/TextUtilities.cs):
+        CROWD CONTROL = 0C 1B 18 20 0D 24 0C 18 17 1D 1B 18 15
+        EMU-COOP-PLUS = 0E 16 1E 2F 0C 18 18 19 2F 19 15 1E 1C
+    """
+    file_off = 0x01AAFC
+    expected = bytes([0x0C, 0x1B, 0x18, 0x20, 0x0D, 0x24, 0x0C, 0x18, 0x17, 0x1D, 0x1B, 0x18, 0x15])
+    actual = bytes(rom[file_off:file_off + 13])
+    if actual != expected:
+        raise RuntimeError(
+            f"Sanity check failed at file 0x{file_off:X}: "
+            f"expected encoded 'CROWD CONTROL' ({expected.hex()}), got {actual.hex()}"
+        )
+    new = bytes([0x0E, 0x16, 0x1E, 0x2F, 0x0C, 0x18, 0x18, 0x19, 0x2F, 0x19, 0x15, 0x1E, 0x1C])
+    rom[file_off:file_off + 13] = new
+    return [(file_off, expected, new)]
+
+
 EXPERIMENTS = {
     "h1_no_b58d": experiment_h1_no_b58d,
     "h2_save_regs": experiment_h2_save_regs,
+    "emu_coop_plus_brand": experiment_emu_coop_plus_brand,
 }
 
 
@@ -144,7 +169,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("orig_rom")
     ap.add_argument("--experiment", required=True, choices=sorted(EXPERIMENTS))
-    ap.add_argument("--base-ips", default="bridge_core/patches/zelda_cc.ips",
+    ap.add_argument("--base-ips", default="bridge_core/patches/zelda_emu_coop_plus.ips",
                     help="baseline CC patch to start from")
     ap.add_argument("--out-ips", help="output IPS path (default: <experiment>.ips)")
     ap.add_argument("--out-rom", help="output patched .nes path (default: <experiment>.nes)")
@@ -169,7 +194,7 @@ def main() -> None:
     new_ips_bytes = make_ips(orig, bytes(rom))
     default_dir = Path("dist") / args.experiment
     default_dir.mkdir(parents=True, exist_ok=True)
-    out_ips = Path(args.out_ips or default_dir / "zelda_cc.ips")
+    out_ips = Path(args.out_ips or default_dir / "zelda_emu_coop_plus.ips")
     out_rom = Path(args.out_rom or default_dir / "zelda_cc.nes")
     out_ips.write_bytes(new_ips_bytes)
     out_rom.write_bytes(bytes(rom))

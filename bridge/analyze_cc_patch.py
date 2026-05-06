@@ -8,7 +8,7 @@ Includes a minimal 6502 disassembler (no external deps).
 
 Usage:
   python analyze_cc_patch.py <orig.nes> [<patch.ips>]
-  (defaults to bridge_core/patches/zelda_cc.ips for the IPS)
+  (defaults to bridge_core/patches/zelda_emu_coop_plus.ips for the IPS)
 """
 from __future__ import annotations
 
@@ -193,7 +193,7 @@ def file_offset_to_cpu(file_offset: int, header_len: int = 16) -> tuple[int, int
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("orig_rom")
-    ap.add_argument("ips", nargs="?", default="bridge_core/patches/zelda_cc.ips")
+    ap.add_argument("ips", nargs="?", default="bridge_core/patches/zelda_emu_coop_plus.ips")
     ap.add_argument("--region", help="only disassemble this region (hex offset)")
     ap.add_argument("--no-disasm", action="store_true", help="just print bytes")
     args = ap.parse_args()

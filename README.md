@@ -37,6 +37,14 @@ instead of an emulator, see [bridge/README.md](bridge/README.md). Same OCI relay
 same session-code workflow, same Z1 modes — just with a USB cable to the cart
 instead of FCEUX.
 
+## What changed (v1.5)
+
+- **EDN8 hardware bridge is end-to-end working** — a real NES + Everdrive Pro N8 can now play emu-coop with an FCEUX peer over the same OCI relay, items syncing in real time. Verified hardware end-to-end on 2026-05-06.
+- The bridge's CC USB framing was fixed (we'd been sending frames without the trailing checksum byte; the cart was misaligning by one byte per transaction and the game crashed at exactly 97 reads no matter the rate). Recovered the correct framing by decompiling Crowd Control's official `EverDriveN8ProConnector` and matching its `(L = body_length_with_checksum, body, checksum = sum(body) mod 256)` format.
+- Bridge polling now uses ArrayRead (action 0x01) over a small set of contiguous ranges instead of scattered Read-individual reads, which is much lighter on the cart's main-loop hook and lets Z1's title→overworld transitions complete cleanly while the bridge is connected.
+- Bridge GUI auto-detects the EDN8 (USB Serial Device, VID 0483) and lists it first in the COM port dropdown with a helpful label.
+- The vendored ROM patch is rebranded as `zelda_emu_coop_plus.ips` (Z1 tile-encoded "EMU-COOP-PLUS" replaces "CROWD CONTROL" in the upstream WarpWorld Crowd Control patch — same wire protocol, same functionality, just our identifier).
+
 ## What changed (v1.4)
 
 - New optional EDN8 hardware bridge (`bridge/`) — Python + CustomTkinter app that lets a real NES with a CC-patched cart join emu-coop sessions as a peer alongside FCEUX clients.
