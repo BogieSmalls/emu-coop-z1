@@ -1,5 +1,8 @@
 # CC patch architecture (reverse-engineered)
 
+> **2026-05-06 update:** All "patch experiments" pursued in this doc (h1 — remove `JSR $B58D`; h2 — register save/restore; the larger "the patch is fundamentally broken for sustained polling" framing) were chasing a host-side bug. The actual root cause was a missing checksum byte in our framing. With correct framing the patch sustains 10 Hz polling indefinitely. See `cc-patch-capabilities.md` "Postmortem" section. The disassembly below is preserved for future reference but the **action items at the end of this doc are no longer needed**.
+
+
 Captured 2026-05-06 by disassembling `bridge/bridge_core/patches/zelda_cc.ips` against the unpatched `Legend of Zelda, The (USA).nes` ROM. Disassembly tool: `bridge/analyze_cc_patch.py` (minimal 6502 disassembler + IPS-region viewer).
 
 This document records what we know about how the existing CC patch is structured, so it can be modified or replaced for emu-coop's continuous-sync use case.

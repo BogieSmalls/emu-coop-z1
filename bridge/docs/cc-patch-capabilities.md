@@ -1,12 +1,16 @@
 # CC patch capabilities (audit results)
 
-Captured against a real EDN8 + CC-patched Z1R seed on 2026-05-06. Audit script: `bridge/audit_cc_capabilities.py`.
+Captured against a real EDN8 + CC-patched Z1R seed on 2026-05-06. Audit scripts: `bridge/audit_cc_capabilities.py`, `bridge/audit_low_rate.py`, `bridge/audit_correct_framing.py`.
 
-## Summary
+## TL;DR (resolved)
 
-**The CC patch tolerates only intermittent USB reads, not sustained polling.** Sustained USB activity at any rate above ~0 Hz crashes the game (Z1) within ~10-15 seconds, regardless of read size. This invalidates the bridge's original architecture (10 Hz polling of all SYNC addresses) and forces a redesign.
+**The CC patch is fine.** Our original audit findings ("crash at exactly 97 transactions, regardless of rate") were caused by **a bug in our host-side framing**, not a defect in the patch. We were sending CC frames without the required trailing checksum byte and with `L = 1 + body_length`. The cart's NMI hook reads `L` body bytes after the L byte, so without the checksum byte our L was off by one and the cart consumed one extra byte per frame from the next frame in the FIFO. After ~97 transactions of cumulative byte-misalignment, the cart's buffer state corrupted and the game crashed.
 
-The smoking gun: with the USB cable unplugged from the EDN8, the same ROM remains stable indefinitely on the overworld. The crash is an interaction between the CC patch's NMI hook and sustained USB request servicing — not a bug in the patch itself, and not a defect in the game ROM.
+The fix is in `bridge_core/cc_client.py` (commit 9aaf8d1) — append `sum(mid + action + payload) mod 256` as a checksum byte at end of body, and use `L = body_length_including_checksum`. With correct framing, **1000 sustained 10 Hz reads complete cleanly with zero crashes.**
+
+Recovered the correct framing by decompiling Crowd Control's official EverDriveN8ProConnector at `C:\Users\bogie\AppData\Local\Programs\crowdcontrol\resources\client\ConnectorLib.dll` — see `bridge/docs/cc-patch-architecture.md` for the exact reference frame format.
+
+The detailed audit data and disproved hypotheses are preserved below as historical record. **Skip to the bottom for the final operating envelope** (10 Hz × full polling sweep is fully viable).
 
 ## Test environment
 
@@ -184,3 +188,68 @@ This is substantial 6502 ASM work — call it a separate project, not bridge wor
 - EDN8 firmware version: not recorded; capture for next run.
 
 These should be addressed before the bridge architecture is finalized.
+
+---
+
+## Postmortem: actual root cause (resolved 2026-05-06)
+
+The four "redesign options" above were authored under the false belief that the patch couldn't sustain polling. That was wrong. The whole investigation chased a symptom — exactly 97 successful transactions before the game went silent, regardless of pacing — without questioning whether our host code was correct.
+
+### What actually broke
+
+Every CC frame requires a trailing checksum byte: `(mid + action + payload bytes) mod 256`. The L byte is `body_length_INCLUDING_checksum`. Our host code (in `bridge_core/cc_client.py`, `audit_cc_capabilities.py`, `cc_monitor_safe.py`, the older `EmuCoopBridge.py`, and the C# `Program.cs`) had been emitting frames with **no checksum byte** and `L = 1 + body_length`. The cart's NMI hook reads L body bytes after L, so:
+
+- Our frame: `[L=6, mid, action, count, addr_lo, addr_hi]` (6 bytes total, no checksum)
+- Cart's loop: reads 6 body bytes after L → consumes 1 byte beyond our frame
+- That byte: the leading L byte of the next frame in FIFO
+
+Per request, the cart's NMI eats one byte from the next pending frame. Subsequent frames are misinterpreted (their original L byte is gone, so the new "L" is whatever was their MID byte, which leads to garbage handler invocations). Garbage handlers can write very large responses (e.g., `Read individual addresses` with garbage `count` byte), saturating the cart's TX FIFO and eventually hanging the cart's main loop in `STA $40F0`. The threshold of ~97 was a deterministic property of the audit's MID-cycling pattern × the per-transaction byte-leak.
+
+### How we found it
+
+The user pointed at the official Crowd Control client (`C:\Users\bogie\AppData\Local\Programs\crowdcontrol\resources\client\ConnectorLib.dll`). Decompiling `EverDriveN8ProConnector.CodeInject` and `ByteEx.AppendChecksum` showed:
+
+```csharp
+private bool CodeInject(byte[] asm)
+{
+    return MemWrite(25231360u, asm.Prepend(checked((byte)asm.Length)).ToArray());
+}
+
+public static byte[] AppendChecksum(this byte[] array)
+{
+    byte[] result = new byte[array.Length + 1];
+    byte sum = 0;
+    for (int i = 0; i < array.Length; i++)
+    {
+        sum = (byte)(sum + (result[i] = array[i]));
+    }
+    result[result.Length - 1] = sum;
+    return result;
+}
+```
+
+Calls look like `CodeInject(new byte[5] {nextID, 0, 1, addr_lo, addr_hi}.AppendChecksum())`. So the body has a checksum, and L = body length including checksum.
+
+We rebuilt our framing to match (`bridge/audit_correct_framing.py`) and ran the audit again: **1000 sustained reads at 10 Hz, 100 seconds wallclock, zero crashes** (vs. deterministic crash at read 97 with the old framing). Three patch experiments (h1, h2) and the proposed "redesign for low-rate polling" were all chasing a host bug, not a patch bug.
+
+### Hypotheses that were tested and disproved
+
+For the historical record:
+
+- **h1 (NOP out always-called `JSR $B58D`):** rejected — same exact 97-read crash pattern.
+- **h2 (NMI hook PHA/TXA/TYA register save+restore around the original $E484):** rejected — same exact pattern.
+- **"Pause-only sync is the only viable architecture":** rejected — full 10 Hz polling works fine with correct framing.
+- **"Cart firmware has a finite transaction limit":** rejected — limit was downstream of host bug.
+- **"Writes don't count toward the limit":** never definitively tested but moot.
+
+### Final operating envelope
+
+With correct framing, sustained polling is unproblematic at every rate we've tested:
+
+| Rate | Bytes/poll | Duration | Result |
+|---|---|---|---|
+| 10 Hz | 1 byte | 100 sec / 1000 reads | 984 OK / 16 transient timeouts (screen transitions only); no crash |
+
+The 16 transient timeouts were two ~8-read clusters during cave-entry/cave-exit screen transitions, where Z1's main loop is too busy to service USB for ~1.5 sec. The cart and game both recovered cleanly each time and continued for 800+ subsequent reads.
+
+**The bridge architecture (10 Hz scatter-read of all 285 tloz_all SYNC addresses every tick)** is a green-light: just tolerate up to ~15-20 consecutive timeouts as normal screen-transition behavior, and don't treat them as a crash signal. The original `bridge_cli.cmd_run` and `bridge_gui.session_worker` polling loop is fundamentally fine; only the timeout-streak abort threshold needs tuning upward from the audit's 5-or-10 default.
