@@ -93,25 +93,19 @@ class SessionWorker:
                     self._emit("state", state="ESTABLISHED")
 
                 if pipe.state == "ESTABLISHED":
-                    running_byte = cc.read_addrs([mode.RUNNING_ADDR], timeout_ms=200)
-                    if running_byte and len(running_byte) >= 1:
-                        snapshot = {mode.RUNNING_ADDR: running_byte[0]}
-                        running = engine.is_game_running(snapshot)
+                    full_snapshot = cc.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                    if full_snapshot is not None:
+                        running = engine.is_game_running(full_snapshot)
                         self._emit("cart_game", running=running)
                         if running:
-                            addrs = sorted(mode.SYNC.keys())
-                            values = cc.read_addrs(addrs, timeout_ms=500)
-                            if values and len(values) == len(addrs):
-                                full_snapshot = {addr: values[i] for i, addr in enumerate(addrs)}
-                                full_snapshot[mode.RUNNING_ADDR] = running_byte[0]
-                                if not engine.did_cache:
-                                    to_send = engine.check_first_running(full_snapshot)
-                                    for addr, value in to_send:
-                                        pipe.send_data({"addr": addr, "value": value})
-                                for addr, send_value, msg in engine.diff(full_snapshot):
-                                    pipe.send_data({"addr": addr, "value": send_value})
-                                    if msg:
-                                        self._emit("message", text=msg)
+                            if not engine.did_cache:
+                                to_send = engine.check_first_running(full_snapshot)
+                                for addr, value in to_send:
+                                    pipe.send_data({"addr": addr, "value": value})
+                            for addr, send_value, msg in engine.diff(full_snapshot):
+                                pipe.send_data({"addr": addr, "value": send_value})
+                                if msg:
+                                    self._emit("message", text=msg)
                         else:
                             if engine.did_cache:
                                 self._emit("log", text="Game stopped running; pausing sync")

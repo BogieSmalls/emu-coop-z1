@@ -15,6 +15,21 @@ MATCH = {"kind": "stringtest", "addr": 0xFFEB, "value": "ZELDA"}
 RUNNING_ADDR = 0x12
 RUNNING_RANGE = (0x4, 0xD)
 
+# Contiguous (base, length) ranges to poll via Action 0x01 (ArrayRead).
+# Using ArrayRead instead of scattered Action 0x00 reads keeps the cart's
+# per-response handler work tiny (1 LDA per byte vs 1 LDA-via-pointer per
+# byte plus lots of address dereference work), which matters during Z1
+# state transitions where the game's main loop has tight timing.
+# These ranges cover RUNNING_ADDR + the entire SYNC set, with some unused
+# bytes pulled along; the diff logic only consults SYNC keys so extras are free.
+READ_RANGES: list[tuple[int, int]] = [
+    (0x0012, 1),     # RUNNING_ADDR
+    (0x0657, 0x26),  # inventory + progress items, $0657-$067C (gaps OK)
+    (0x067F, 0x80),  # overworld map: $067F-$06FE
+    (0x06FF, 0x80),  # dungeon flags part 1: $06FF-$077E
+    (0x077F, 0x80),  # dungeon flags part 2: $077F-$07FE
+]
+
 
 def is_running(memory: dict[int, int]) -> bool:
     """Returns True if the game is in a 'running' state.

@@ -102,26 +102,19 @@ def cmd_run(args: argparse.Namespace) -> int:
                 sink.state("ESTABLISHED")
 
             if pipe.state == "ESTABLISHED":
-                # Poll the running register
-                running_byte = cc.read_addrs([mode.RUNNING_ADDR], timeout_ms=200)
-                if running_byte and len(running_byte) >= 1:
-                    snapshot = {mode.RUNNING_ADDR: running_byte[0]}
-                    if engine.is_game_running(snapshot):
-                        # Read the full sync set; CCClient.read_addrs chunks
-                        # internally so 400+ addresses are fine.
-                        addrs = sorted(mode.SYNC.keys())
-                        values = cc.read_addrs(addrs, timeout_ms=500)
-                        if values and len(values) == len(addrs):
-                            full_snapshot = {addr: values[i] for i, addr in enumerate(addrs)}
-                            full_snapshot[mode.RUNNING_ADDR] = running_byte[0]
-                            if not engine.did_cache:
-                                to_send = engine.check_first_running(full_snapshot)
-                                for addr, value in to_send:
-                                    pipe.send_data({"addr": addr, "value": value})
-                            for addr, send_value, msg in engine.diff(full_snapshot):
-                                pipe.send_data({"addr": addr, "value": send_value})
-                                if msg:
-                                    sink.message(msg)
+                # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).
+                # Much lighter on the cart's main-loop than scattered reads.
+                full_snapshot = cc.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                if full_snapshot is not None:
+                    if engine.is_game_running(full_snapshot):
+                        if not engine.did_cache:
+                            to_send = engine.check_first_running(full_snapshot)
+                            for addr, value in to_send:
+                                pipe.send_data({"addr": addr, "value": value})
+                        for addr, send_value, msg in engine.diff(full_snapshot):
+                            pipe.send_data({"addr": addr, "value": send_value})
+                            if msg:
+                                sink.message(msg)
                     else:
                         if engine.did_cache:
                             sink.log("Game stopped running; pausing sync")

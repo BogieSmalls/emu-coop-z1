@@ -153,6 +153,19 @@ class CCClient:
         self.send_read_array(base, length)
         return self.poll_response(timeout_ms=timeout_ms)
 
+    def read_ranges(self, ranges: list[tuple[int, int]], timeout_ms: int = 300) -> dict[int, int] | None:
+        """Read a set of contiguous (base, length) ranges via Action 0x01.
+        Returns a {addr: byte_value} dict spanning every byte in every range,
+        or None if any range read times out."""
+        snapshot: dict[int, int] = {}
+        for base, length in ranges:
+            data = self.read_array(base, length, timeout_ms=timeout_ms)
+            if data is None or len(data) != length:
+                return None
+            for i, byte in enumerate(data):
+                snapshot[base + i] = byte
+        return snapshot
+
     def poll_response(self, timeout_ms: int = 100) -> bytes | None:
         """Wait up to timeout_ms for a response matching the last send_read_*."""
         deadline = time.perf_counter() + timeout_ms / 1000.0
