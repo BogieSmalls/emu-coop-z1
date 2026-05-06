@@ -60,11 +60,51 @@ class SessionScreen(ctk.CTkFrame):
         ctk.CTkButton(self, text="Disconnect", command=self._disconnect).pack(pady=10)
 
     def on_show(self) -> None:
-        # The actual session worker is wired up in Task 22
-        self._append_log("Entered Session screen")
+        from bridge_gui.session_worker import SessionWorker
+        import queue
+
+        config = getattr(self.controller, "session_config", None)
+        if config is None:
+            self._append_log("ERROR: no session config on controller")
+            return
+        self._event_queue = queue.Queue()
+        self._worker = SessionWorker(config, self._event_queue)
+        self._worker.start()
+        self._poll_events()
+
+    def _poll_events(self) -> None:
+        while True:
+            try:
+                ev = self._event_queue.get_nowait()
+            except Exception:
+                break
+            self._handle_event(ev)
+        # Schedule next poll (10 Hz)
+        self._poll_after_id = self.after(100, self._poll_events)
+
+    def _handle_event(self, ev) -> None:
+        kind = ev.kind
+        d = ev.data
+        if kind == "message":
+            self.message(d["text"])
+        elif kind == "log":
+            self.log(d["text"], d.get("level", "INFO"))
+        elif kind == "state":
+            self.state(d["state"])
+        elif kind == "cart_usb":
+            self.update_cart_usb(d["connected"])
+        elif kind == "cart_game":
+            self.update_cart_game(d["running"])
+        elif kind == "net_relay":
+            self.update_net_relay(d["connected"])
+        elif kind == "net_partner":
+            self.update_net_partner(d["paired"])
 
     def _disconnect(self) -> None:
-        # Confirmation will be added when worker exists in Task 22
+        if hasattr(self, "_worker"):
+            self._worker.stop()
+        if hasattr(self, "_poll_after_id"):
+            self.after_cancel(self._poll_after_id)
         self.controller.show_screen("relay_setup")
 
     # --- StatusSink-style methods (called by worker thread via after()) ---
