@@ -57,8 +57,86 @@ def experiment_h1_no_b58d(rom: bytearray) -> list[tuple[int, bytes, bytes]]:
     return [(file_off, expected, new)]
 
 
+def experiment_h2_save_regs(rom: bytearray) -> list[tuple[int, bytes, bytes]]:
+    """Hypothesis 2: NMI hook clobbers A/X/Y before Z1's original NMI handler
+    at $E484 can save them, corrupting main-code state on every NMI.
+
+    Fix:
+    - Prepend `PHA / TXA / PHA / TYA / PHA` to the NMI hook at $FFC0 (extends
+      the 8-byte hook to 13 bytes, into free space at $FFC8-$FFCC).
+    - Add a register-restore wrapper at $FFCD (8 bytes, free space): pops Y/X/A,
+      then jumps to original $E484.
+    - Redirect bank-6 JMP $E484 (at $B2B3) to JMP $FFCD instead.
+    """
+    changes = []
+
+    # Step 1: extended NMI hook at $FFC0 (file 0x1FFD0)
+    file_off = 0x1FFD0
+    expected = b"\xA9\x0E\x20\xAC\xFF\x4C\x90\xB2"  # original 8-byte hook
+    actual = bytes(rom[file_off:file_off + 8])
+    if actual != expected:
+        raise RuntimeError(
+            f"Sanity check failed at $FFC0 (file 0x{file_off:X}): "
+            f"expected {expected.hex()}, got {actual.hex()}"
+        )
+    new = bytes([
+        0x48,                     # PHA       (save A)
+        0x8A, 0x48,               # TXA / PHA (save X)
+        0x98, 0x48,               # TYA / PHA (save Y)
+        0xA9, 0x0E,               # LDA #$0E
+        0x20, 0xAC, 0xFF,         # JSR $FFAC
+        0x4C, 0x90, 0xB2,         # JMP $B290
+    ])  # 13 bytes
+    # Verify the extra 5 bytes we'll occupy are free (FF)
+    extra = bytes(rom[file_off + 8:file_off + 13])
+    if extra != b"\xFF" * 5:
+        raise RuntimeError(
+            f"Free-space check failed at $FFC8 (file 0x{file_off + 8:X}): "
+            f"expected FF*5, got {extra.hex()}"
+        )
+    rom[file_off:file_off + 13] = new
+    changes.append((file_off, expected + extra, new))
+
+    # Step 2: register-restore wrapper at $FFCD (file 0x1FFDD)
+    file_off = 0x1FFDD
+    expected = b"\xFF" * 8
+    actual = bytes(rom[file_off:file_off + 8])
+    if actual != expected:
+        raise RuntimeError(
+            f"Free-space check failed at $FFCD (file 0x{file_off:X}): "
+            f"expected FF*8, got {actual.hex()}"
+        )
+    new = bytes([
+        0x68,                     # PLA
+        0xA8,                     # TAY  (restore Y)
+        0x68,                     # PLA
+        0xAA,                     # TAX  (restore X)
+        0x68,                     # PLA  (restore A)
+        0x4C, 0x84, 0xE4,         # JMP $E484
+    ])  # 8 bytes
+    rom[file_off:file_off + 8] = new
+    changes.append((file_off, expected, new))
+
+    # Step 3: redirect JMP $E484 in bank-6 NMI-drain to JMP $FFCD
+    # $B2B3 in bank 6 = file 0x1B2C3
+    file_off = 0x1B2C3
+    expected = b"\x4C\x84\xE4"  # JMP $E484
+    actual = bytes(rom[file_off:file_off + 3])
+    if actual != expected:
+        raise RuntimeError(
+            f"Sanity check failed at $B2B3 (file 0x{file_off:X}): "
+            f"expected {expected.hex()}, got {actual.hex()}"
+        )
+    new = b"\x4C\xCD\xFF"  # JMP $FFCD
+    rom[file_off:file_off + 3] = new
+    changes.append((file_off, expected, new))
+
+    return changes
+
+
 EXPERIMENTS = {
     "h1_no_b58d": experiment_h1_no_b58d,
+    "h2_save_regs": experiment_h2_save_regs,
 }
 
 
