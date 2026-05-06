@@ -11,6 +11,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('bridge_core/patches/zelda_emu_coop_plus.ips', 'bridge_core/patches'),
+        ('tools/edlink-n8.exe', 'tools'),
     ],
     hiddenimports=[
         'bridge_core.modes.tloz_all',
