@@ -96,6 +96,32 @@ SYNC: dict[int, dict] = {
     0x0674: {"name": "Boomerang", "kind": "high"},
     0x0675: {"name": "Magical Boomerang", "kind": "high"},
     0x0676: {"name": "Magical Shield", "kind": "high"},
+    # progress: compasses + maps + triforce (inherited from tloz_progress.lua)
+    0x0667: {
+        "name_bitmap": [
+            "Level 1 Compass", "Level 2 Compass", "Level 3 Compass", "Level 4 Compass",
+            "Level 5 Compass", "Level 6 Compass", "Level 7 Compass", "Level 8 Compass",
+        ],
+        "kind": "bitOr",
+    },
+    0x0668: {
+        "name_bitmap": [
+            "Level 1 Map", "Level 2 Map", "Level 3 Map", "Level 4 Map",
+            "Level 5 Map", "Level 6 Map", "Level 7 Map", "Level 8 Map",
+        ],
+        "kind": "bitOr",
+    },
+    0x0669: {"name": "Level 9 Compass", "kind": "high"},
+    0x066A: {"name": "Level 9 Map", "kind": "high"},
+    0x0671: {
+        "name_bitmap": [
+            "First Triforce Piece", "Second Triforce Piece", "Third Triforce Piece",
+            "Fourth Triforce Piece", "Fifth Triforce Piece", "Sixth Triforce Piece",
+            "Seventh Triforce Piece", "Eighth Triforce Piece",
+        ],
+        "kind": "bitOr",
+    },
+    0x0672: {"name": "Triforce of Power", "kind": "high"},
     # keys (delta)
     0x066E: {"kind": "delta", "deltaMin": 0},
     # heart containers (function-as-kind)

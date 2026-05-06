@@ -49,3 +49,19 @@ def test_heart_record_kind_is_callable():
 def test_bomb_record_has_delta_kind():
     record = tloz_all.SYNC[0x067C]
     assert record["kind"] == "delta"
+
+
+def test_sync_includes_progress_inherited_addresses():
+    """tloz_all.lua inherits from tloz_progress.lua, which adds compass/map/triforce.
+    These are critical for Z1R co-op — skipping them would break triforce-piece sync."""
+    expected = [0x0667, 0x0668, 0x0669, 0x066A, 0x0671, 0x0672]
+    for addr in expected:
+        assert addr in tloz_all.SYNC, f"missing progress addr 0x{addr:04X}"
+
+
+def test_triforce_pieces_record_has_bitmap():
+    """0x0671 is the triforce-pieces register; each bit = one piece."""
+    record = tloz_all.SYNC[0x0671]
+    assert record["kind"] == "bitOr"
+    assert "name_bitmap" in record
+    assert len(record["name_bitmap"]) == 8
