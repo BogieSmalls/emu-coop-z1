@@ -93,16 +93,14 @@ class SessionWorker:
                     self._emit("state", state="ESTABLISHED")
 
                 if pipe.state == "ESTABLISHED":
-                    cc.send_read_addrs([mode.RUNNING_ADDR])
-                    running_byte = cc.poll_response(timeout_ms=200)
+                    running_byte = cc.read_addrs([mode.RUNNING_ADDR], timeout_ms=200)
                     if running_byte and len(running_byte) >= 1:
                         snapshot = {mode.RUNNING_ADDR: running_byte[0]}
                         running = engine.is_game_running(snapshot)
                         self._emit("cart_game", running=running)
                         if running:
                             addrs = sorted(mode.SYNC.keys())
-                            cc.send_read_addrs(addrs)
-                            values = cc.poll_response(timeout_ms=500)
+                            values = cc.read_addrs(addrs, timeout_ms=500)
                             if values and len(values) == len(addrs):
                                 full_snapshot = {addr: values[i] for i, addr in enumerate(addrs)}
                                 full_snapshot[mode.RUNNING_ADDR] = running_byte[0]

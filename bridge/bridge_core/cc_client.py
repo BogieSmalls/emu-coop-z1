@@ -131,6 +131,28 @@ class CCClient:
         payload = bytes((len(data) & 0xFF, base & 0xFF, (base >> 8) & 0xFF)) + data
         self._usb_mem_wr(ADDR_FIFO, _make_cc_frame(mid, 0x03, payload))
 
+    def read_addrs(self, addrs: list[int], timeout_ms: int = 500, chunk_size: int = 100) -> bytes | None:
+        """Read N individual addresses; chunks into multiple frames if needed
+        (action 0x00 frames have a 1-byte count and a 1-byte L, so a single
+        frame fits at most ~125 addresses). Returns concatenated bytes in the
+        original `addrs` order, or None if any chunk times out."""
+        if not addrs:
+            return b""
+        out = bytearray()
+        for chunk_start in range(0, len(addrs), chunk_size):
+            chunk = addrs[chunk_start:chunk_start + chunk_size]
+            self.send_read_addrs(chunk)
+            chunk_vals = self.poll_response(timeout_ms=timeout_ms)
+            if chunk_vals is None or len(chunk_vals) != len(chunk):
+                return None
+            out += chunk_vals
+        return bytes(out)
+
+    def read_array(self, base: int, length: int, timeout_ms: int = 500) -> bytes | None:
+        """Read a contiguous range; convenience for send_read_array + poll."""
+        self.send_read_array(base, length)
+        return self.poll_response(timeout_ms=timeout_ms)
+
     def poll_response(self, timeout_ms: int = 100) -> bytes | None:
         """Wait up to timeout_ms for a response matching the last send_read_*."""
         deadline = time.perf_counter() + timeout_ms / 1000.0
