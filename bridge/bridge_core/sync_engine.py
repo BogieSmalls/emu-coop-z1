@@ -86,3 +86,120 @@ def record_changed(
             allow = cond_fn(masked_value, size)
 
     return allow, value
+
+
+from typing import Any
+from bridge_core.cc_client import CCClient
+
+
+class SyncEngine:
+    """Polling-based equivalent of GameDriver in driver.lua.
+
+    Holds a cache of last-known RAM values for the mode's sync set, diffs each
+    poll snapshot against it, runs record_changed, and either emits outgoing
+    data frames (via the caller) or applies incoming ones (via cc_client).
+    """
+
+    def __init__(self, cc_client: CCClient, mode: Any) -> None:
+        self.cc = cc_client
+        self.mode = mode
+        self.cache: dict[int, int] = {}
+        self.did_cache = False
+        self.force_send = False
+        self.sleep_queue: list[dict] = []
+
+    def is_game_running(self, snapshot: dict[int, int]) -> bool:
+        return self.mode.is_running(snapshot)
+
+    def check_first_running(self, snapshot: dict[int, int]) -> list[tuple[int, int]]:
+        """Populate cache on the first running tick. If force_send is True,
+        return a list of (addr, value) pairs to broadcast."""
+        if self.did_cache:
+            return []
+        to_send: list[tuple[int, int]] = []
+        for addr in self.mode.SYNC:
+            value = snapshot.get(addr, 0)
+            if addr not in self.cache:
+                self.cache[addr] = value
+            if self.force_send and value != 0:
+                to_send.append((addr, value))
+        self.did_cache = True
+        return to_send
+
+    def diff(self, snapshot: dict[int, int]) -> list[tuple[int, int, str | None]]:
+        """For each watched address that changed since last poll, run
+        record_changed (sending side). Returns list of (addr, send_value, message)
+        for changes that should be transmitted."""
+        out: list[tuple[int, int, str | None]] = []
+        for addr, record in self.mode.SYNC.items():
+            cur = snapshot.get(addr, 0)
+            prev = self.cache.get(addr, cur)
+            if cur == prev:
+                continue
+            allow, send_value = record_changed(record, cur, prev, receiving=False)
+            if allow:
+                self.cache[addr] = cur
+                msg = self._build_send_message(record, cur, prev)
+                out.append((addr, send_value, msg))
+        return out
+
+    def handle_table(self, t: dict) -> list[str]:
+        """Apply a partner's data frame to RAM. Returns any user-visible messages."""
+        addr = t.get("addr")
+        if addr is None:
+            return []
+        record = self.mode.SYNC.get(addr)
+        if record is None:
+            return [f"Partner changed unknown address 0x{addr:04X}"]
+        prev_bytes = self._read_ram_byte(addr)
+        allow, value = record_changed(record, t["value"], prev_bytes, receiving=True)
+        messages: list[str] = []
+        if allow:
+            self.cc.send_write_pairs([(addr, value & 0xFF)])
+            self.cache[addr] = value & 0xFF
+            # Receive trigger
+            if "receive_trigger" in record:
+                msg = record["receive_trigger"](value, prev_bytes)
+                if msg:
+                    messages.append(msg)
+            # Function-kind messages
+            elif "message" in record:
+                msg = record["message"](value, prev_bytes)
+                if msg:
+                    messages.append(msg)
+            # Single-name items
+            elif "name" in record and value != prev_bytes:
+                messages.append(f"Partner got {record['name']}")
+            # Multi-name items
+            elif "name_map" in record and value > 0 and value != prev_bytes:
+                idx = value - 1
+                if 0 <= idx < len(record["name_map"]):
+                    messages.append(f"Partner got {record['name_map'][idx]}")
+        return messages
+
+    def resync(self) -> None:
+        """Clear cache and arm force_send so the next running tick re-broadcasts state."""
+        self.cache.clear()
+        self.did_cache = False
+        self.force_send = True
+
+    # --- internals ---
+
+    def _read_ram_byte(self, addr: int) -> int:
+        """Synchronous read of a single byte for handle_table prior-value lookup."""
+        self.cc.send_read_addrs([addr])
+        result = self.cc.poll_response(timeout_ms=200)
+        if result and len(result) >= 1:
+            return result[0]
+        return 0
+
+    def _build_send_message(self, record: dict, cur: int, prev: int) -> str | None:
+        """Local-side analog of handle_table's message construction (for the
+        sending peer's own UI: 'You picked up Wood Sword')."""
+        if "name" in record and cur > prev:
+            return f"You got {record['name']}"
+        if "name_map" in record and cur > prev:
+            idx = cur - 1
+            if 0 <= idx < len(record["name_map"]):
+                return f"You got {record['name_map'][idx]}"
+        return None
