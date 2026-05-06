@@ -131,7 +131,8 @@ class ROMSetupScreen(ctk.CTkFrame):
         self.controller.show_screen("relay_setup")
 
     def _upload_to_edn8(self, file_path: Path) -> None:
-        """Push the patched ROM to the EDN8's SD card via edlink-n8.exe."""
+        """Push the patched ROM to the EDN8's SD card via edlink-n8.exe.
+        First ensures the target folder exists (mkdir is idempotent), then copies."""
         edlink = self._edlink_path()
         if edlink is None:
             self._status_label.configure(
@@ -139,17 +140,28 @@ class ROMSetupScreen(ctk.CTkFrame):
                 text_color="orange",
             )
             return
+        # edlink target dir without the trailing slash for -mkdir
+        target_dir_arg = EDN8_TARGET_DIR.rstrip("\\")
         try:
-            result = subprocess.run(
-                [str(edlink), "-cp", str(file_path), EDN8_TARGET_DIR],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            mkdir_result = subprocess.run(
+                [str(edlink), "-mkdir", target_dir_arg],
+                capture_output=True, text=True, timeout=15,
             )
-            if result.returncode != 0:
-                err = (result.stderr or result.stdout or "(no output)").strip()[:300]
+            if mkdir_result.returncode != 0:
+                err = (mkdir_result.stderr or mkdir_result.stdout or "(no output)").strip()[:300]
                 self._status_label.configure(
-                    text=f"Upload failed (rc={result.returncode}): {err}",
+                    text=f"Could not create {target_dir_arg} (rc={mkdir_result.returncode}): {err}",
+                    text_color="red",
+                )
+                return
+            cp_result = subprocess.run(
+                [str(edlink), "-cp", str(file_path), EDN8_TARGET_DIR],
+                capture_output=True, text=True, timeout=30,
+            )
+            if cp_result.returncode != 0:
+                err = (cp_result.stderr or cp_result.stdout or "(no output)").strip()[:300]
+                self._status_label.configure(
+                    text=f"Upload failed (rc={cp_result.returncode}): {err}",
                     text_color="red",
                 )
             else:
