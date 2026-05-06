@@ -69,11 +69,13 @@ class MockCCServer:
             idx += total
 
     def _handle_mem_wr(self, payload: bytes) -> None:
-        """A MEM_WR to ADDR_FIFO carries an inner CC frame: L, MID, ACTION, body."""
+        """A MEM_WR to ADDR_FIFO carries an inner CC frame: L, MID, ACTION, body.
+        Per the CC convention, L = 1 + body_length, which equals the total CC
+        frame length (including the L byte itself)."""
         if not payload:
             return
         L = payload[0]
-        if L != len(payload) - 1:
+        if L != len(payload):
             return
         if len(payload) < 3:
             return
