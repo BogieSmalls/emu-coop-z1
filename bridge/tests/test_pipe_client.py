@@ -183,3 +183,20 @@ def test_heartbeat_does_not_fail_with_recent_traffic():
     pipe._clock = lambda: 20.0  # 10s after last RX, well under 15s timeout
     pipe.heartbeat_tick()
     assert pipe.state == "ESTABLISHED"
+
+
+def test_fail_with_reconnect_enabled_goes_to_reconnecting():
+    bridge_sock, _ = mock_pair()
+    pipe = PipeClient(socket=bridge_sock, code="abcdef", peer_id="p1", clock=lambda: 0.0)
+    pipe.state = "ESTABLISHED"
+    pipe._reconnect_enabled = True
+    pipe._fail("test failure")
+    assert pipe.state == "RECONNECTING"
+
+
+def test_backoff_sequence():
+    bridge_sock, _ = mock_pair()
+    pipe = PipeClient(socket=bridge_sock, code="abcdef", peer_id="p1")
+    expected = [1, 2, 4, 8, 16, 30, 30, 30]
+    for want in expected:
+        assert pipe._next_backoff() == want

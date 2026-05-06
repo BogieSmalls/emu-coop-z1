@@ -13,6 +13,8 @@ MAX_PAYLOAD = 4096
 HEARTBEAT_INTERVAL = 5.0
 HEARTBEAT_TIMEOUT = 15.0
 
+BACKOFF_SCHEDULE = [1, 2, 4, 8, 16, 30]
+
 
 class WireError(Exception):
     pass
@@ -73,6 +75,10 @@ class PipeClient:
         self.on_data = None
         self.on_partner_reconnected = None
         self.on_abort = None
+        self._reconnect_enabled = False
+        self._reconnect_attempt = 0
+        self._next_retry_at: float | None = None
+        self._post_reconnect = False
 
     def send_join(self) -> None:
         self.state = "JOIN_SENT"
@@ -189,11 +195,22 @@ class PipeClient:
     def _fail(self, msg: str) -> None:
         if self.state in ("FAILED", "CLOSED"):
             return
-        self.state = "FAILED"
         try:
             self._sock.close()
         except Exception:
             pass
+        if self._reconnect_enabled:
+            self.state = "RECONNECTING"
+            self._next_retry_at = self._clock() + self._next_backoff()
+        else:
+            self.state = "FAILED"
+
+    def _next_backoff(self) -> int:
+        attempt = self._reconnect_attempt
+        self._reconnect_attempt += 1
+        if attempt < len(BACKOFF_SCHEDULE):
+            return BACKOFF_SCHEDULE[attempt]
+        return 30
 
     def close(self) -> None:
         self.state = "CLOSED"
