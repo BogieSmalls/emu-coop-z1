@@ -1,0 +1,27 @@
+[project]
+name = "emu-coop-bridge"
+version = "0.1.0"
+description = "Bridge that lets a real NES (via Everdrive Pro N8) participate in emu-coop sessions"
+requires-python = ">=3.10"
+dependencies = [
+  "pyserial>=3.5",
+  "customtkinter>=5.2",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-asyncio>=0.23", "pytest-timeout>=2"]
+dist = ["pyinstaller>=6"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["bridge_core", "bridge_core.modes", "bridge_cli", "bridge_gui"]
+
+[tool.setuptools.package-data]
+"bridge_core" = ["patches/*.ips"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
