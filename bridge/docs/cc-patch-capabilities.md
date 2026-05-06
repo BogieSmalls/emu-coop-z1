@@ -93,6 +93,27 @@ All 7 regions OK, 8-17 ms. Unchanged.
 
 Even the lightest possible sustained workload (1 byte at 10 Hz) crashed the game within 11 seconds.
 
+## Why this happens (CC patch design intent)
+
+Reviewing the upstream Crowd Control hardware patch design after the audits clarified the root cause. The CC patch was authored by [Warp World](https://crowdcontrol.medium.com/creating-nes-hardware-support-for-crowd-control-cc80bf5d586d) for **streamer interactions**: viewers send "drop a heart" / "give Link a sword" / etc. commands at most every few seconds. It was never designed for the continuous-sync workload emu-coop requires.
+
+The patch architecture (per [WarpWorld/NES-Hardware-Example-Punchout](https://github.com/WarpWorld/NES-Hardware-Example-Punchout)):
+
+- **NMI hook** at the patched ROM's NMI vector copies any incoming USB FIFO bytes into a small scratch RAM buffer and sets a `CommReady` flag. This part is fast — pure copy.
+- **Main-loop hook** runs every frame and, when `CommReady` is set, dispatches the command via a jump table and writes responses to the FIFO data register.
+
+The actual N8 protocol (`_CommFormat.txt`) supports actions 0x00/0x01 (read individual / array), 0x02/0x03 (write individual / array), 0x04 (Freeze — conditional memory writes), 0xFE (Version), 0xFF (heartbeat). All eight actions go through the main-loop dispatcher.
+
+The bottleneck the audits exposed is **not** NMI starvation; it's **main-loop starvation**. When the bridge sends commands at 10 Hz, every frame the main-loop hook spends its budget servicing USB instead of running the game's own update logic. After ~100 frames of this, the game's state machine has skipped enough updates that something corrupts and it crashes (typically PPU/sprite state, manifesting as the "screen goes black" symptom we observed).
+
+The 16 ms per-response latency we measured = exactly one NES frame = one main-loop iteration spent entirely on USB. That's expected behavior given the patch design; what the patch authors didn't document is that **a series of these in rapid succession breaks the running game**, because they assumed a slow stream of commands, not a polling loop.
+
+## Why we can't bypass the patch
+
+The EDN8 cart's MCU has access to the cart-side address space (ROM, cart SRAM at 0x6000-0x7FFF, USB FIFO at 0x4400/0x4401-style registers depending on revision). It does **not** have access to the NES's internal work-RAM (0x0000-0x07FF), where Z1 keeps the inventory, map progress, and game-state byte we need to mirror. Any read of NES work-RAM requires NES CPU code to issue the read and forward the bytes. That's what the CC patch does, and that's why we're locked into the main-loop dispatch model.
+
+[masible/edn8usb](https://github.com/masible/edn8usb) is a thin loader wrapper that exposes the EDN8 as a serial port; it does not document or provide a memory-dump / NES-halt facility that would let us read work-RAM without a running game cooperating.
+
 ## Key findings
 
 1. **Single-frame budget.** Each USB read response takes one NES frame (~16 ms), so the CC patch monopolizes nearly 100 % of vblank during a request. The game's own NMI handler runs with reduced PPU time, dropping sprite/scroll updates.
@@ -138,9 +159,15 @@ Use a designated unused RAM byte as a "send now" trigger. Player presses a butto
 
 Adds complexity but allows infrequent polling with player-driven sync moments.
 
-### Option 4: Don't use this CC patch
+### Option 4: Author a co-op-friendly patch
 
-If the patch is fundamentally incompatible with continuous sync, an alternative would be to author a new CC patch (or use a different one — e.g., directly probe the patch source for a less invasive NMI hook) that doesn't monopolize vblank. Out of scope for current bridge work.
+The upstream WarpWorld patch could be forked and modified to be cooperative with the host game's frame budget. Realistic approaches:
+
+- **Throttle the main-loop hook.** Currently it processes a pending command on every frame; could instead service one command per N frames (e.g., one every 6 frames = effective 10 Hz). Frees up most main-loop time for game logic.
+- **Use action 0x04 (Freeze) for incoming sync.** Instead of write commands per partner update, set up Freeze entries once at session start (e.g., "if inventory byte == X, write Y"). The cart enforces them autonomously without per-frame USB traffic. This addresses one direction; reads still need a polling-friendly mechanism.
+- **Add a custom batched-read action** that returns multiple memory regions in one main-loop iteration with a known frame budget, so the bridge can do one well-bounded burst per session-friendly interval rather than continuous polling.
+
+This is substantial 6502 ASM work — call it a separate project, not bridge work. It would belong in a fork of [WarpWorld/NES-Hardware-Example-Punchout](https://github.com/WarpWorld/NES-Hardware-Example-Punchout) or a Z1-specific fork derived from the same template.
 
 ## Implementation impact on bridge code
 
