@@ -41,3 +41,140 @@ def try_decode_frame(buf: bytes) -> tuple[dict | None, int]:
     except json.JSONDecodeError as e:
         raise WireError(f"malformed JSON: {e}")
     return obj, 4 + length
+
+
+PROTOCOL_VERSION = 1
+
+
+class PipeClient:
+    """Python equivalent of RelayPipe in pipe_relay.lua.
+
+    States: INIT → CONNECTING → JOIN_SENT → JOINED → HELLO_SENT → ESTABLISHED
+                                                                ↓
+                                                           FAILED / RECONNECTING
+    """
+
+    def __init__(self, socket, code: str, peer_id: str) -> None:
+        self._sock = socket
+        self.code = code
+        self.peer_id = peer_id
+        self.state = "INIT"
+        self._rx_buf = bytearray()
+        self._hello_sent = False
+        self._hello_received = False
+        self._joined = False
+        # Frame handlers receive raw frames before state-machine routing
+        self.on_data = None
+        self.on_partner_reconnected = None
+        self.on_abort = None
+
+    def send_join(self) -> None:
+        self.state = "JOIN_SENT"
+        self._send_frame({"kind": "join", "code": self.code, "peer_id": self.peer_id})
+
+    def send_hello(self) -> None:
+        if self._hello_sent:
+            return
+        self._hello_sent = True
+        self.state = "HELLO_SENT"
+        self._send_frame({"kind": "hello", "v": PROTOCOL_VERSION})
+
+    def send_data(self, body: dict) -> None:
+        if self.state != "ESTABLISHED":
+            return
+        self._send_frame({"kind": "data", "body": body})
+
+    def abort(self, reason: str) -> None:
+        self._send_frame({"kind": "abort", "reason": reason})
+        self._fail(f"Aborted: {reason}")
+
+    def tick(self) -> None:
+        if self.state in ("FAILED", "CLOSED"):
+            return
+        # Drain any pending bytes
+        try:
+            chunk = self._sock.recv(4096)
+            if chunk:
+                self._rx_buf += chunk
+            elif self.state in ("ESTABLISHED", "HELLO_SENT", "JOINED"):
+                # Peer closed
+                self._fail("Connection lost")
+                return
+        except BlockingIOError:
+            pass
+        except OSError:
+            self._fail("Connection lost")
+            return
+        # Process whole frames
+        while True:
+            try:
+                frame, consumed = try_decode_frame(bytes(self._rx_buf))
+            except WireError as e:
+                self._fail(f"Wire protocol error: {e}")
+                return
+            if frame is None:
+                break
+            del self._rx_buf[:consumed]
+            self._handle_frame(frame)
+            if self.state in ("FAILED", "CLOSED"):
+                return
+
+    def _handle_frame(self, frame: dict) -> None:
+        kind = frame.get("kind")
+        if kind == "joined":
+            if not self._joined:
+                self._joined = True
+                self.state = "JOINED"
+                self.send_hello()
+        elif kind == "hello":
+            if self._hello_received:
+                self._fail("duplicate hello")
+                return
+            if frame.get("v") != PROTOCOL_VERSION:
+                self._send_frame({"kind": "abort", "reason": "version mismatch"})
+                self._fail(f"Partner version mismatch: v={frame.get('v')}, expected v={PROTOCOL_VERSION}")
+                return
+            self._hello_received = True
+            if self._hello_sent and self.state != "ESTABLISHED":
+                self.state = "ESTABLISHED"
+        elif kind == "data":
+            if self.state == "ESTABLISHED" and self.on_data:
+                self.on_data(frame.get("body", {}))
+        elif kind == "ping":
+            self._send_frame({"kind": "pong"})
+        elif kind == "pong":
+            pass
+        elif kind == "abort":
+            reason = frame.get("reason", "unknown")
+            if self.on_abort:
+                self.on_abort(reason)
+            self._fail(f"Partner aborted: {reason}")
+        elif kind == "partner-reconnected":
+            self._hello_sent = False
+            self._hello_received = False
+            self.state = "JOINED"
+            self.send_hello()
+            if self.on_partner_reconnected:
+                self.on_partner_reconnected()
+
+    def _send_frame(self, obj: dict) -> None:
+        try:
+            self._sock.send(encode_frame(obj))
+        except OSError:
+            self._fail("send failed")
+
+    def _fail(self, msg: str) -> None:
+        if self.state in ("FAILED", "CLOSED"):
+            return
+        self.state = "FAILED"
+        try:
+            self._sock.close()
+        except Exception:
+            pass
+
+    def close(self) -> None:
+        self.state = "CLOSED"
+        try:
+            self._sock.close()
+        except Exception:
+            pass
