@@ -30,6 +30,18 @@ When you launch `coop.lua`, the connection dialog asks which transport to use.
 2. Host: launch `coop.lua`, Transport=Direct, Host address=`0.0.0.0`, Port=`9999`, Are you the host?=Yes.
 3. Other player: launch `coop.lua`, Transport=Direct, Host address=`<host's LAN IP>`, Port=`9999`, Are you the host?=No.
 
+## EDN8 hardware bridge
+
+If you want to play emu-coop on a real NES with an [Everdrive Pro N8](https://krikzz.com/store/home/55-everdrive-n8-pro-nes.html)
+instead of an emulator, see [bridge/README.md](bridge/README.md). Same OCI relay,
+same session-code workflow, same Z1 modes — just with a USB cable to the cart
+instead of FCEUX.
+
+## What changed (v1.4)
+
+- New optional EDN8 hardware bridge (`bridge/`) — Python + CustomTkinter app that lets a real NES with a CC-patched cart join emu-coop sessions as a peer alongside FCEUX clients.
+- Bundled as a single ~11 MB `bridge.exe` for Windows; macOS support is best-effort.
+
 ## What changed (v1.3)
 
 - IRC is no longer used. Replaced by Direct + Relay transports.
