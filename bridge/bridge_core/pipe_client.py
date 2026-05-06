@@ -10,6 +10,9 @@ import json
 
 MAX_PAYLOAD = 4096
 
+HEARTBEAT_INTERVAL = 5.0
+HEARTBEAT_TIMEOUT = 15.0
+
 
 class WireError(Exception):
     pass
@@ -54,7 +57,8 @@ class PipeClient:
                                                            FAILED / RECONNECTING
     """
 
-    def __init__(self, socket, code: str, peer_id: str) -> None:
+    def __init__(self, socket, code: str, peer_id: str, clock=None) -> None:
+        import time
         self._sock = socket
         self.code = code
         self.peer_id = peer_id
@@ -63,7 +67,9 @@ class PipeClient:
         self._hello_sent = False
         self._hello_received = False
         self._joined = False
-        # Frame handlers receive raw frames before state-machine routing
+        self._clock = clock or time.monotonic
+        self._last_rx = self._clock()
+        self._last_ping = self._clock()
         self.on_data = None
         self.on_partner_reconnected = None
         self.on_abort = None
@@ -119,7 +125,24 @@ class PipeClient:
             if self.state in ("FAILED", "CLOSED"):
                 return
 
+    def _init_heartbeat(self) -> None:
+        self._last_rx = self._clock()
+        self._last_ping = self._clock()
+
+    def heartbeat_tick(self) -> None:
+        if self.state not in ("ESTABLISHED", "HELLO_SENT"):
+            return
+        now = self._clock()
+        if (now - self._last_rx) > HEARTBEAT_TIMEOUT:
+            self._fail("Connection lost (heartbeat timeout)")
+            return
+        if (now - self._last_ping) > HEARTBEAT_INTERVAL:
+            self._send_frame({"kind": "ping"})
+            self._last_ping = now
+
     def _handle_frame(self, frame: dict) -> None:
+        # Any received frame resets the liveness timer
+        self._last_rx = self._clock()
         kind = frame.get("kind")
         if kind == "joined":
             if not self._joined:
