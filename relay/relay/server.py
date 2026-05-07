@@ -180,36 +180,37 @@ async def handle_client(reader, writer):
         return
 
     if sess.state == "HALF_BROKEN":
-        if peer_id == sess.broken_peer_id:
-            # Returning peer within grace window. Restore to PAIRED.
-            if sess.grace_task:
-                sess.grace_task.cancel()
-                sess.grace_task = None
-            sess.peers[peer_id] = peer
-            sess.state = "PAIRED"
-            sess.broken_peer_id = None
-            other = next(iter(sess.peers[pid] for pid in sess.peers if pid != peer_id))
-            # Send partner-reconnected to the survivor
-            try:
-                other.writer.write(encode_frame({"kind": "partner-reconnected", "peer_id": peer_id}))
-                await other.writer.drain()
-            except Exception:
-                pass
-            # Send joined to the rejoining peer
-            try:
-                peer.writer.write(encode_frame({"kind": "joined"}))
-                await peer.writer.drain()
-            except Exception:
-                pass
-            # Start forwarding for the new peer's socket; partner's forward task should still be alive
-            peer.forward_task = asyncio.create_task(_forward(peer, other))
-            if not other.forward_task or other.forward_task.done():
-                other.forward_task = asyncio.create_task(_forward(other, peer))
-            await peer.done.wait()
-            await _on_peer_disconnect(sess, peer)
-            return
-        # Different peer_id during HALF_BROKEN — reject
-        await send_abort_close(writer, "code in use")
+        # Accept any peer_id during HALF_BROKEN — the session code is the
+        # auth mechanism, and Lua/bridge clients generate a fresh peer_id
+        # on each launch, so strict peer_id matching prevents legitimate
+        # reconnects after a process restart. Treat the new connection as
+        # the returning broken peer regardless of peer_id.
+        if sess.grace_task:
+            sess.grace_task.cancel()
+            sess.grace_task = None
+        # Keep the new peer's chosen peer_id (replaces the dropped one)
+        sess.peers[peer_id] = peer
+        sess.state = "PAIRED"
+        sess.broken_peer_id = None
+        other = next(p for pid, p in sess.peers.items() if pid != peer_id)
+        # Send partner-reconnected to the survivor
+        try:
+            other.writer.write(encode_frame({"kind": "partner-reconnected", "peer_id": peer_id}))
+            await other.writer.drain()
+        except Exception:
+            pass
+        # Send joined to the rejoining peer
+        try:
+            peer.writer.write(encode_frame({"kind": "joined"}))
+            await peer.writer.drain()
+        except Exception:
+            pass
+        # Start forwarding; restart partner's forward task if it ended on the dead socket
+        peer.forward_task = asyncio.create_task(_forward(peer, other))
+        if not other.forward_task or other.forward_task.done():
+            other.forward_task = asyncio.create_task(_forward(other, peer))
+        await peer.done.wait()
+        await _on_peer_disconnect(sess, peer)
         return
 
 
@@ -230,21 +231,39 @@ async def _start_forwarding(sess):
 
 
 async def _forward(src, dst):
-    """Shuttle bytes from src.reader to dst.writer until EOF or error.
-    Sets src.done so handle_client knows this peer's session is over."""
+    """Shuttle bytes from src.reader to dst.writer.
+
+    Sets src.done ONLY when src disconnected (reader EOF or read error). If
+    the WRITE side fails (dst is dead), exit silently — the OTHER _forward
+    task will detect dst's read EOF and set dst.done. Conflating the two
+    causes the relay to tear down a session when only one peer dropped, which
+    leaves the survivor's reconnect attempts unable to find their slot.
+    """
+    src_disconnected = False
     try:
         while True:
-            data = await asyncio.wait_for(src.reader.read(4096), timeout=IDLE_SECONDS)
-            if not data:
+            try:
+                data = await asyncio.wait_for(src.reader.read(4096), timeout=IDLE_SECONDS)
+            except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError, OSError):
+                src_disconnected = True
                 break
-            dst.writer.write(data)
-            await dst.writer.drain()
-    except (asyncio.IncompleteReadError, asyncio.TimeoutError, ConnectionError):
-        pass
+            if not data:
+                src_disconnected = True
+                break
+            try:
+                dst.writer.write(data)
+                await dst.writer.drain()
+            except (ConnectionError, BrokenPipeError, OSError):
+                # dst died; let the other forwarder handle dst.done.
+                return
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logger.info("forward error: %s", e)
+        src_disconnected = True
     finally:
-        src.done.set()
+        if src_disconnected:
+            src.done.set()
 
 
 async def _watch_for_eof(peer):

@@ -129,3 +129,57 @@ async def test_grace_expires_closes_survivor(relay_running, monkeypatch):
     assert f["kind"] == "abort"
     assert "did not return" in f["reason"].lower()
     w2.close()
+
+
+async def test_one_peer_drop_does_not_tear_down_session(relay_running, monkeypatch):
+    """Regression: when one peer drops, the survivor's session must be kept
+    alive so it can rejoin or wait out the grace window. Previously the
+    _forward task signaled the survivor's done event when its writes to the
+    dead peer failed, which caused _on_peer_disconnect to tear down the
+    HALF_BROKEN session immediately."""
+    monkeypatch.setattr(server, "GRACE_SECONDS", 5)
+    host, port = relay_running
+    r1, w1 = await open_peer(host, port)
+    r2, w2 = await open_peer(host, port)
+    w1.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p1"}))
+    w2.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p2"}))
+    await asyncio.gather(w1.drain(), w2.drain())
+    await read_frame(r1); await read_frame(r2)
+    # Peer 1 drops uncleanly.
+    w1.close(); await w1.wait_closed()
+    # Give the relay time to process the drop and any cascading forward errors.
+    await asyncio.sleep(1.0)
+    # Session should still exist in HALF_BROKEN with peer 2 connected.
+    sess = server._sessions.get("abcdef")
+    assert sess is not None, "session was torn down when only one peer dropped"
+    assert sess.state == "HALF_BROKEN"
+    assert "p2" in sess.peers
+    w2.close()
+
+
+async def test_half_broken_accepts_different_peer_id(relay_running, monkeypatch):
+    """Regression: clients (Lua, bridge) generate a fresh peer_id on each
+    process launch, so HALF_BROKEN must allow ANY peer_id to claim the
+    broken slot — strict peer_id matching prevented restart-and-reconnect."""
+    monkeypatch.setattr(server, "GRACE_SECONDS", 5)
+    host, port = relay_running
+    r1, w1 = await open_peer(host, port)
+    r2, w2 = await open_peer(host, port)
+    w1.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p1-original"}))
+    w2.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p2"}))
+    await asyncio.gather(w1.drain(), w2.drain())
+    await read_frame(r1); await read_frame(r2)
+    # Peer 1 drops, then comes back with a NEW peer_id (simulating restart).
+    w1.close(); await w1.wait_closed()
+    await asyncio.sleep(0.5)
+    r1b, w1b = await open_peer(host, port)
+    w1b.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p1-fresh-uuid"}))
+    await w1b.drain()
+    # Should be welcomed with 'joined', not aborted with 'code in use'.
+    f1b = await asyncio.wait_for(read_frame(r1b), 3)
+    assert f1b["kind"] == "joined", f"expected joined, got {f1b}"
+    # Survivor should see partner-reconnected with the NEW peer_id.
+    f2 = await asyncio.wait_for(read_frame(r2), 3)
+    assert f2["kind"] == "partner-reconnected"
+    assert f2["peer_id"] == "p1-fresh-uuid"
+    w1b.close(); w2.close()
