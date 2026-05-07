@@ -88,6 +88,25 @@ class SessionWorker:
             # backoff schedule and we keep updating the GUI accordingly.
             while not self._stop_flag.is_set() and pipe.state != "CLOSED":
                 loop_start = time.monotonic()
+
+                # When pipe wants to reconnect, open a fresh socket and re-JOIN.
+                if pipe.state == "RECONNECTING":
+                    retry_at = pipe._next_retry_at or 0
+                    if loop_start >= retry_at:
+                        try:
+                            new_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            new_sock.connect((cfg["relay"], cfg["relay_port"]))
+                            new_sock.setblocking(False)
+                            pipe.reset_for_reconnect(new_sock)
+                            pipe.send_join()
+                            self._emit("log", text=f"Relay reconnect attempt #{pipe._reconnect_attempt}")
+                            sock = new_sock  # so we can close it on shutdown
+                        except Exception as e:
+                            self._emit("log", text=f"Reconnect attempt failed: {e}")
+                            # PipeClient already advanced backoff via _next_backoff;
+                            # bump _next_retry_at to defer the next try.
+                            pipe._next_retry_at = loop_start + pipe._next_backoff()
+
                 pipe.tick()
                 pipe.heartbeat_tick()
 

@@ -166,6 +166,8 @@ class PipeClient:
             self._hello_received = True
             if self._hello_sent and self.state != "ESTABLISHED":
                 self.state = "ESTABLISHED"
+                # Reset reconnect backoff counter on a clean re-handshake
+                self._reconnect_attempt = 0
         elif kind == "data":
             if self.state == "ESTABLISHED" and self.on_data:
                 self.on_data(frame.get("body", {}))
@@ -193,7 +195,7 @@ class PipeClient:
             self._fail("send failed")
 
     def _fail(self, msg: str) -> None:
-        if self.state in ("FAILED", "CLOSED"):
+        if self.state in ("FAILED", "CLOSED", "RECONNECTING"):
             return
         try:
             self._sock.close()
@@ -204,6 +206,25 @@ class PipeClient:
             self._next_retry_at = self._clock() + self._next_backoff()
         else:
             self.state = "FAILED"
+
+    def reset_for_reconnect(self, new_sock) -> None:
+        """Caller (session worker / cmd_run) opens a fresh TCP connection to
+        the relay and hands the new socket here. We reset our protocol state
+        and let send_join start the handshake again. The caller is responsible
+        for calling send_join() after this returns."""
+        try:
+            self._sock.close()
+        except Exception:
+            pass
+        self._sock = new_sock
+        self.state = "INIT"
+        self._joined = False
+        self._hello_sent = False
+        self._hello_received = False
+        self._rx_buf = bytearray()
+        self._next_retry_at = None
+        self._post_reconnect = True
+        self._init_heartbeat()
 
     def _next_backoff(self) -> int:
         attempt = self._reconnect_attempt

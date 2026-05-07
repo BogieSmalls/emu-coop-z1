@@ -97,6 +97,22 @@ def cmd_run(args: argparse.Namespace) -> int:
         while pipe.state != "CLOSED":
             loop_start = time.monotonic()
 
+            # When pipe wants to reconnect, open a fresh socket and re-JOIN.
+            if pipe.state == "RECONNECTING":
+                retry_at = pipe._next_retry_at or 0
+                if loop_start >= retry_at:
+                    try:
+                        new_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        new_sock.connect((args.relay, args.relay_port))
+                        new_sock.setblocking(False)
+                        pipe.reset_for_reconnect(new_sock)
+                        pipe.send_join()
+                        sink.log(f"Relay reconnect attempt #{pipe._reconnect_attempt}")
+                        sock = new_sock
+                    except Exception as e:
+                        sink.log(f"Reconnect attempt failed: {e}")
+                        pipe._next_retry_at = loop_start + pipe._next_backoff()
+
             pipe.tick()
             pipe.heartbeat_tick()
 
