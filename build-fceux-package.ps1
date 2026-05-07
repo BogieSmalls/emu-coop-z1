@@ -21,7 +21,7 @@ if (-not $versionLine) {
 $rawVersion = $versionLine.Matches[0].Groups[1].Value
 $version = $rawVersion -replace '\s+', '-'   # "2.0 beta1" -> "2.0-beta1"
 
-$packageName = "emu-coop-plus-$version"
+$packageName = "emu-coop-plus-$version-fceux"
 $dist = Join-Path $PSScriptRoot "dist"
 $staging = Join-Path $dist $packageName
 $zipPath = Join-Path $dist "$packageName.zip"
