@@ -82,24 +82,35 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     pipe.on_data = lambda body: _on_data(engine, sink, body)
     pipe.on_abort = lambda reason: sink.message(f"Partner aborted: {reason}")
-    pipe.on_partner_reconnected = lambda: engine.resync()
+    def _reconnected():
+        sink.message("Partner reconnected — re-syncing state")
+        engine.resync()
+    pipe.on_partner_reconnected = _reconnected
     pipe.send_join()
 
     # App-level hello (after pipe ESTABLISHED)
     app_hello_sent = False
+    last_state = None
     sink.state("CONNECTING")
 
     try:
-        while pipe.state not in ("FAILED", "CLOSED"):
+        while pipe.state != "CLOSED":
             loop_start = time.monotonic()
 
             pipe.tick()
             pipe.heartbeat_tick()
 
+            # Surface every state transition
+            if pipe.state != last_state:
+                sink.state(pipe.state)
+                if pipe.state == "RECONNECTING":
+                    sink.message("Partner disconnected; reconnecting…")
+                    app_hello_sent = False
+                last_state = pipe.state
+
             if pipe.state == "ESTABLISHED" and not app_hello_sent:
                 pipe.send_data({"op": "hello", "guid": mode.GUID, "version": "0.1.0"})
                 app_hello_sent = True
-                sink.state("ESTABLISHED")
 
             if pipe.state == "ESTABLISHED":
                 # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).

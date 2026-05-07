@@ -75,22 +75,40 @@ class SessionWorker:
 
             pipe.on_data = lambda body: self._on_data(engine, body)
             pipe.on_abort = lambda reason: self._emit("message", text=f"Partner aborted: {reason}")
-            pipe.on_partner_reconnected = lambda: engine.resync()
+            pipe.on_partner_reconnected = lambda: self._on_partner_reconnected(engine)
             pipe.send_join()
             self._emit("net_relay", connected=True)
 
             app_hello_sent = False
+            last_state: str | None = None
 
-            while not self._stop_flag.is_set() and pipe.state not in ("FAILED", "CLOSED"):
+            # Loop until user stops the worker or the pipe is fully closed.
+            # We deliberately keep going through FAILED/RECONNECTING so the
+            # underlying PipeClient can re-handshake with the relay on its own
+            # backoff schedule and we keep updating the GUI accordingly.
+            while not self._stop_flag.is_set() and pipe.state != "CLOSED":
                 loop_start = time.monotonic()
                 pipe.tick()
                 pipe.heartbeat_tick()
+
+                # Surface every state transition to the GUI
+                if pipe.state != last_state:
+                    self._emit("state", state=pipe.state)
+                    if pipe.state == "RECONNECTING":
+                        self._emit("message", text="Partner disconnected; reconnecting…")
+                        self._emit("net_partner", paired=False)
+                        # On the next ESTABLISHED, send our app hello again
+                        app_hello_sent = False
+                    elif pipe.state == "FAILED":
+                        self._emit("message", text="Connection failed (no reconnect available).")
+                        self._emit("net_partner", paired=False)
+                        self._emit("net_relay", connected=False)
+                    last_state = pipe.state
 
                 if pipe.state == "ESTABLISHED" and not app_hello_sent:
                     pipe.send_data({"op": "hello", "guid": mode.GUID, "version": "0.1.0"})
                     app_hello_sent = True
                     self._emit("net_partner", paired=True)
-                    self._emit("state", state="ESTABLISHED")
 
                 if pipe.state == "ESTABLISHED":
                     full_snapshot = cc.read_ranges(mode.READ_RANGES, timeout_ms=300)
@@ -123,6 +141,12 @@ class SessionWorker:
         except Exception as e:
             self._emit("log", text=f"ERROR: {e}", level="ERROR")
             self._emit("state", state="FAILED")
+
+    def _on_partner_reconnected(self, engine: SyncEngine) -> None:
+        """Fired by PipeClient when the relay reports the partner is back.
+        Resync re-broadcasts our full state to the new partner."""
+        self._emit("message", text="Partner reconnected — re-syncing state")
+        engine.resync()
 
     def _on_data(self, engine: SyncEngine, body: dict) -> None:
         if body.get("op") == "hello":
