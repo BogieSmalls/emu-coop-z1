@@ -116,7 +116,6 @@ OLD_REGIONS = [
     (0x01B2A0, 0xB290, 38),    # NMI inbound drain
     (0x01B3A0, 0xB390, 21),    # main-loop hook
     (0x01B4A0, 0xB490, 517),   # dispatcher prologue + Freeze evaluator + handlers cluster
-    (0x01B700, 0xB6F0, 77),    # secondary hook (called from $E65A)
     (0x01B8A0, 0xB890, 39),    # action 0xFF (NullMsg) handler
     (0x01B920, 0xB910, 64),    # action 0xFE (Version) handler
     (0x01B9A0, 0xB990, 70),    # Read action handler
@@ -126,6 +125,16 @@ OLD_REGIONS = [
     (0x01BDA0, 0xBD90, 12),    # action-dispatch jump TABLE (data, not code)
     (0x01BEA0, 0xBE90, 49),    # dispatcher
 ]
+
+# Secondary hook stays in bank 6 (Z1 has bank 6 mapped when reaching $E65A,
+# and the $E65A injection is a bare JSR with no bank switch — so the hook
+# must live wherever bank 6 maps). Move it OUT of the V4-SecondaryRegion
+# blast zone ($B310+) into the small 512-byte free region at $B100.
+SECONDARY_OLD_FILE = 0x01B700
+SECONDARY_OLD_CPU = 0xB6F0
+SECONDARY_NEW_FILE = 0x01B110
+SECONDARY_NEW_CPU = 0xB100
+SECONDARY_LEN = 77
 
 # CPU range covered by the old code (used to detect "internal" operands)
 OLD_RANGE_START = 0xB290
@@ -149,11 +158,12 @@ JUMP_TABLE_LEN = 12  # 6 entries * 2 bytes each
 
 # The 4-byte response prelude originally at $ED94 (in bank 7) collides with at
 # least one Z1R seed that puts an $RTS / data byte there. Relocate it to the
-# tail of our packed bank-4 region so we don't touch $ED94 at all.
+# tail of our packed bank-4 region so we don't touch $ED94 at all. Its CPU
+# location is computed dynamically from NEW_BASE_CPU + total packed code length.
 PRELUDE_OLD_CPU = 0xED94
-PRELUDE_NEW_CPU = 0xB8CC  # = NEW_BASE_CPU + 1117 (right after the packed code)
 PRELUDE_LEN = 4
 PRELUDE_BYTES = bytes([0x2B, 0xD4, 0x22, 0xDD])
+PRELUDE_NEW_CPU = NEW_BASE_CPU + sum(L for _, _, L in OLD_REGIONS)
 
 # NMI hook entry — 8 bytes that the NMI vector points at. Originally at $FFC0,
 # but at least one Z1R seed puts its own code there. Relocate to $FFD4 (16 free
@@ -334,13 +344,15 @@ def main() -> None:
     #  5. Updating bank value, JSR/JMP hook targets, and NMI vector
     final = bytearray(vanilla)
     relocated_ranges = [(fo, fo + L) for fo, _, L in OLD_REGIONS]
-    # Skip the old prelude+leftover bytes at $ED94-$ED9A (file 0x01EDA4-0x01EDAA).
-    # Also skip the old NMI hook entry at $FFC0-$FFC7 (file 0x01FFD0-0x01FFD7).
+    # Skip the old prelude+leftover bytes at $ED94-$ED9A (file 0x01EDA4-0x01EDAA),
+    # the old NMI hook entry at $FFC0-$FFC7 (file 0x01FFD0-0x01FFD7), and the
+    # old secondary hook bytes at $B6F0+ (we re-stage them at $B100).
     skip_ranges = relocated_ranges + [
         (_bank7_file_offset(PRELUDE_OLD_CPU),
-         _bank7_file_offset(PRELUDE_OLD_CPU) + 7),  # $ED94-$ED9A inclusive
+         _bank7_file_offset(PRELUDE_OLD_CPU) + 7),
         (_bank7_file_offset(NMI_HOOK_OLD_CPU),
-         _bank7_file_offset(NMI_HOOK_OLD_CPU) + NMI_HOOK_LEN),  # $FFC0-$FFC7
+         _bank7_file_offset(NMI_HOOK_OLD_CPU) + NMI_HOOK_LEN),
+        (SECONDARY_OLD_FILE, SECONDARY_OLD_FILE + SECONDARY_LEN),
     ]
 
     def _is_skipped_byte(offset: int) -> bool:
@@ -362,6 +374,19 @@ def main() -> None:
 
     # Stage the relocated code + prelude at bank 4 file location
     final[NEW_BASE_FILE:NEW_BASE_FILE + len(new_block)] = new_block
+
+    # Relocate the secondary hook within bank 6: from old $B6F0 (V4-affected)
+    # to $B100 (small free region). The hook is self-contained — no internal
+    # references to the rest of the patch — so we copy bytes verbatim with
+    # no rewriting; only the CALLER at $E65A needs the new target.
+    secondary_bytes = bytes(patched[SECONDARY_OLD_FILE:SECONDARY_OLD_FILE + SECONDARY_LEN])
+    final[SECONDARY_NEW_FILE:SECONDARY_NEW_FILE + SECONDARY_LEN] = secondary_bytes
+    # Make sure the OLD secondary hook location is FF in final (it will be
+    # since we built final from vanilla and skipped the OLD_REGIONS block,
+    # but the OLD secondary-hook range wasn't in OLD_REGIONS this time, so
+    # we add an explicit clean-up).
+    for i in range(SECONDARY_LEN):
+        final[SECONDARY_OLD_FILE + i] = 0xFF
 
     # Stage the new NMI hook entry at bank 7 $FFD4 (8 bytes):
     #   LDA #$04 / JSR $FFAC / JMP $<new bank-4 NMI drain>
@@ -385,8 +410,10 @@ def main() -> None:
     final[0x01ED9F] = new_main_loop_hook & 0xFF
     final[0x01EDA0] = (new_main_loop_hook >> 8) & 0xFF
 
-    # 3. JSR $B6F0 at $E65A (file 0x1E66A: opcode + operand)
-    new_secondary_hook = mapping[0xB6F0]
+    # 3. JSR $B6F0 at $E65A (file 0x1E66A: opcode + operand). The secondary
+    #    hook is now at SECONDARY_NEW_CPU ($B100, bank 6) — Z1 has bank 6
+    #    mapped when reaching $E65A so the hook must stay in bank 6.
+    new_secondary_hook = SECONDARY_NEW_CPU
     final[0x01E66B] = new_secondary_hook & 0xFF
     final[0x01E66C] = (new_secondary_hook >> 8) & 0xFF
 
