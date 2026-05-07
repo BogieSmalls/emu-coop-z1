@@ -157,6 +157,44 @@ async def test_one_peer_drop_does_not_tear_down_session(relay_running, monkeypat
     w2.close()
 
 
+async def test_survivor_reconnect_during_half_broken(relay_running, monkeypatch):
+    """Regression: when the survivor's socket drops during HALF_BROKEN (e.g.
+    bridge's heartbeat timeout closed its end), and the survivor reconnects
+    with the same peer_id, we must SWAP the socket and stay in HALF_BROKEN —
+    not promote to PAIRED (which has no second peer and crashed the handler)."""
+    monkeypatch.setattr(server, "GRACE_SECONDS", 10)
+    host, port = relay_running
+    r1, w1 = await open_peer(host, port)
+    r2, w2 = await open_peer(host, port)
+    w1.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p1"}))
+    w2.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p2"}))
+    await asyncio.gather(w1.drain(), w2.drain())
+    await read_frame(r1); await read_frame(r2)
+    # Peer 1 drops -> session HALF_BROKEN, p2 is survivor.
+    w1.close(); await w1.wait_closed()
+    await asyncio.sleep(0.5)
+    sess = server._sessions.get("abcdef")
+    assert sess is not None and sess.state == "HALF_BROKEN"
+    # Now the survivor (p2) drops too, then reconnects with the SAME peer_id.
+    w2.close(); await w2.wait_closed()
+    await asyncio.sleep(0.5)
+    # Session should still exist (grace timer keeps it).
+    sess = server._sessions.get("abcdef")
+    assert sess is not None and sess.state == "HALF_BROKEN"
+    # Survivor reconnects with same peer_id.
+    r2b, w2b = await open_peer(host, port)
+    w2b.write(encode_frame({"kind": "join", "code": "abcdef", "peer_id": "p2"}))
+    await w2b.drain()
+    f = await asyncio.wait_for(read_frame(r2b), 3)
+    assert f["kind"] == "joined", f"expected joined, got {f}"
+    # Session should still be HALF_BROKEN (waiting for p1 to return).
+    sess = server._sessions.get("abcdef")
+    assert sess is not None
+    assert sess.state == "HALF_BROKEN", f"expected HALF_BROKEN, got {sess.state}"
+    assert "p2" in sess.peers
+    w2b.close()
+
+
 async def test_half_broken_accepts_different_peer_id(relay_running, monkeypatch):
     """Regression: clients (Lua, bridge) generate a fresh peer_id on each
     process launch, so HALF_BROKEN must allow ANY peer_id to claim the

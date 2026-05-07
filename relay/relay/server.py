@@ -180,32 +180,59 @@ async def handle_client(reader, writer):
         return
 
     if sess.state == "HALF_BROKEN":
-        # Accept any peer_id during HALF_BROKEN — the session code is the
-        # auth mechanism, and Lua/bridge clients generate a fresh peer_id
-        # on each launch, so strict peer_id matching prevents legitimate
-        # reconnects after a process restart. Treat the new connection as
-        # the returning broken peer regardless of peer_id.
+        if peer_id in sess.peers:
+            # Survivor reconnecting — their socket dropped during the grace
+            # window (e.g., bridge's heartbeat timeout closed its end). Swap
+            # the survivor's socket and stay in HALF_BROKEN waiting for the
+            # broken peer to return.
+            old = sess.peers[peer_id]
+            if old.watcher_task:
+                old.watcher_task.cancel()
+            if old.forward_task:
+                old.forward_task.cancel()
+            try:
+                old.writer.close()
+            except Exception:
+                pass
+            # Unblock the old handle_client so it can RTS cleanly.
+            old.done.set()
+            sess.peers[peer_id] = peer
+            try:
+                peer.writer.write(encode_frame({"kind": "joined"}))
+                await peer.writer.drain()
+            except Exception:
+                pass
+            # Watcher keeps the new survivor's socket EOF detectable
+            peer.watcher_task = asyncio.create_task(_watch_for_eof(peer))
+            await peer.done.wait()
+            await _on_peer_disconnect(sess, peer)
+            return
+
+        # Different peer_id — it's the broken peer returning (under any
+        # peer_id, since clients generate a fresh uuid each launch). Promote
+        # back to PAIRED.
         if sess.grace_task:
             sess.grace_task.cancel()
             sess.grace_task = None
-        # Keep the new peer's chosen peer_id (replaces the dropped one)
         sess.peers[peer_id] = peer
         sess.state = "PAIRED"
         sess.broken_peer_id = None
         other = next(p for pid, p in sess.peers.items() if pid != peer_id)
+        # Stop the survivor's watcher_task — forwarding takes back over.
+        if other.watcher_task:
+            other.watcher_task.cancel()
+            other.watcher_task = None
         # Send partner-reconnected to the survivor
         try:
             other.writer.write(encode_frame({"kind": "partner-reconnected", "peer_id": peer_id}))
             await other.writer.drain()
         except Exception:
             pass
-        # Send joined to the rejoining peer
         try:
             peer.writer.write(encode_frame({"kind": "joined"}))
             await peer.writer.drain()
         except Exception:
             pass
-        # Start forwarding; restart partner's forward task if it ended on the dead socket
         peer.forward_task = asyncio.create_task(_forward(peer, other))
         if not other.forward_task or other.forward_task.done():
             other.forward_task = asyncio.create_task(_forward(other, peer))
@@ -301,12 +328,19 @@ async def _on_peer_disconnect(sess, peer):
         _sessions.pop(sess.code, None)
         return
     if sess.state == "PAIRED":
-        # Enter HALF_BROKEN: keep partner around for the grace window
+        # Enter HALF_BROKEN: keep partner around for the grace window.
         dropped_id = peer.peer_id
         sess.peers.pop(dropped_id, None)
         sess.state = "HALF_BROKEN"
         sess.broken_peer_id = dropped_id
         sess.grace_task = asyncio.create_task(_grace_expire(sess))
+        # Start a watcher on the survivor's socket so we detect if the
+        # survivor also disconnects during the grace window (e.g. heartbeat
+        # timeout). Without this, the survivor's connection just hangs and
+        # the relay never notices, leaving stale state when they reconnect.
+        survivor = next(iter(sess.peers.values()), None)
+        if survivor and not survivor.watcher_task:
+            survivor.watcher_task = asyncio.create_task(_watch_for_eof(survivor))
         return
     if sess.state == "HALF_BROKEN":
         # Survivor also dropped; tear down completely
