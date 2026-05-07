@@ -14,6 +14,8 @@ a = Analysis(
         ('tools/edlink-n8.exe', 'tools'),
     ],
     hiddenimports=[
+        'bridge_core.modes.tloz_basic',
+        'bridge_core.modes.tloz_progress',
         'bridge_core.modes.tloz_all',
         'serial.tools.list_ports_windows',
     ],

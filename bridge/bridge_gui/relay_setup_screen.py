@@ -5,7 +5,7 @@ import customtkinter as ctk
 import serial.tools.list_ports
 
 
-AVAILABLE_MODES = ["tloz_all"]  # extend as more modes are ported
+AVAILABLE_MODES = ["tloz_basic", "tloz_progress", "tloz_all"]  # extend as more modes are ported
 DEFAULT_RELAY = "129.158.62.225"
 DEFAULT_RELAY_PORT = 9999
 
