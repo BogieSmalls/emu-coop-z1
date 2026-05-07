@@ -45,8 +45,9 @@ This is the first beta of the working **emu-coop-plus** stack — a real NES pla
 - **Reconnect machinery hardened on both sides.** Both Lua and bridge survive a partner disconnect/reconnect at any point. The relay correctly distinguishes a survivor reconnecting (swap socket, stay HALF_BROKEN) from the dropped peer returning (promote to PAIRED), and tolerates fresh peer_ids on each launch (Lua/bridge generate a new uuid per process).
 - **CC framing finally correct.** The years-old "patch crashes after sustained polling" symptom was actually our host code missing the trailing checksum byte that the cart's NMI loop expects. Recovered the correct framing by decompiling Crowd Control's official EverDriveN8ProConnector. With the fix, 1000 sustained 10 Hz reads complete cleanly with no crashes.
 - **In-ROM rebrand to EMU-COOP-PLUS.** The Z1 tile-text "CROWD CONTROL" is replaced with "EMU-COOP-PLUS" in the vendored patch (`bridge/bridge_core/patches/zelda_emu_coop_plus.ips`). Same wire protocol, just our identifier.
-- **Three DIBS! Lua modes added** (`tloz_dibs_easy`, `tloz_dibs_medium`, `tloz_dibs_medium_entrances_on`) by Bogie. FCEUX-to-FCEUX play works today; bridge support deferred to v2.1 because DIBS! needs sync-engine extensions for handler-driven writes and structured wire values.
 - **Bumped to 2.0 beta1**. Lua compat-version checker treats `beta` as a variant — beta clients only pair with beta clients, protecting stable users from talking to a half-baked release.
+
+**Held back to v2.1:** Bogie's DIBS! competitive modes (`tloz_dibs_easy`, `tloz_dibs_medium`, `tloz_dibs_medium_entrances_on`) — these need bridge-side sync-engine extensions (handler-driven writes to addresses other than the synced one, structured non-scalar wire values) to ship cleanly on both FCEUX and EDN8 simultaneously. Rather than ship FCEUX-only DIBS! and confuse testers, we hold all three until the bridge can host them too.
 
 ## What changed (v1.5)
 
