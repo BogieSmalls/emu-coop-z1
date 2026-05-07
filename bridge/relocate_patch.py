@@ -21,12 +21,24 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
+import json
 import sys
 from pathlib import Path
 
 from bridge_core.ips import apply, parse
 from bridge_core.ips_build import make_ips
+
+
+# Known-good vanilla SHA1s. Any input ROM that hashes to one of these is plain
+# vanilla and applies cleanly. Randomized seeds derived from a vanilla won't
+# match the SHA1 but are accepted by the validator as long as none of the patch
+# sites have been modified.
+VANILLA_SHA1S = {
+    "prg0": "dab79c84934f9aa5db4e7dad390e5d0c12443fa2",
+    "prg1": "3701381a82fc7d52b2dd3e8892047b30a114ab43",
+}
 
 
 # --- 6502 opcode table (subset; same as analyze_cc_patch.py) ---
@@ -172,6 +184,19 @@ NMI_HOOK_OLD_CPU = 0xFFC0
 NMI_HOOK_NEW_CPU = 0xFFD4
 NMI_HOOK_LEN = 8
 
+# Title-screen rebrand. The upstream patch wrote a 13-byte title string at file
+# 0x01AAFC. PRG0 vanilla has 0x24 (blank tile) padding at and around that
+# offset; PRG1 vanilla has additional title-screen tile data (0xCE 0xCF at
+# 0x01AB00-0x01AB01, etc.) inside that 13-byte span. Writing 13 bytes there
+# would silently corrupt the PRG1 title. Solution: write a shorter 8-byte
+# string at 0x01AAF8, the longest contiguous run that's blank padding (0x24)
+# in BOTH PRG0 and PRG1, so a single IPS works for either revision.
+#   E=0x0E M=0x16 U=0x1E -=0x2F C=0x0C O=0x18 P=0x19
+TITLE_OLD_FILE = 0x01AAFC
+TITLE_OLD_LEN = 13
+TITLE_NEW_FILE = 0x01AAF8
+TITLE_NEW_BYTES = bytes([0x0E, 0x16, 0x1E, 0x2F, 0x0C, 0x18, 0x18, 0x19])  # EMU-COOP
+
 
 def _bank7_file_offset(cpu_addr: int) -> int:
     return 0x10 + 7 * 0x4000 + (cpu_addr - 0xC000)
@@ -286,7 +311,12 @@ def relocate_region(
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("vanilla", help="Path to vanilla Z1 NES ROM")
+    ap.add_argument("vanilla", help="Path to vanilla Z1 NES ROM (PRG0 preferred)")
+    ap.add_argument(
+        "--prg1",
+        help="Optional PRG1 vanilla path; if given, asserts every patch site has "
+        "identical vanilla bytes between PRG0 and PRG1 (single IPS supports both).",
+    )
     args = ap.parse_args()
 
     vanilla = Path(args.vanilla).read_bytes()
@@ -353,6 +383,7 @@ def main() -> None:
         (_bank7_file_offset(NMI_HOOK_OLD_CPU),
          _bank7_file_offset(NMI_HOOK_OLD_CPU) + NMI_HOOK_LEN),
         (SECONDARY_OLD_FILE, SECONDARY_OLD_FILE + SECONDARY_LEN),
+        (TITLE_OLD_FILE, TITLE_OLD_FILE + TITLE_OLD_LEN),
     ]
 
     def _is_skipped_byte(offset: int) -> bool:
@@ -426,6 +457,12 @@ def main() -> None:
     final[0x02000A] = NMI_HOOK_NEW_CPU & 0xFF
     final[0x0200_0B] = (NMI_HOOK_NEW_CPU >> 8) & 0xFF
 
+    # 6. Title-screen rebrand. Skip-range above leaves TITLE_OLD_FILE as vanilla;
+    #    write the shorter "EMU-COOP" tile sequence at TITLE_NEW_FILE, which sits
+    #    entirely inside the 9-byte run of blank-tile padding (0x24) shared by
+    #    PRG0 and PRG1 vanilla. Same IPS applies cleanly to either revision.
+    final[TITLE_NEW_FILE:TITLE_NEW_FILE + len(TITLE_NEW_BYTES)] = TITLE_NEW_BYTES
+
     # Generate the new IPS by diffing vanilla -> final
     new_ips = make_ips(vanilla, bytes(final))
     patch_path.write_bytes(new_ips)
@@ -450,6 +487,49 @@ def main() -> None:
     print(f"#   prelude data $ED94:         relocated to ${PRELUDE_NEW_CPU:04X} (bank 4)")
     print(f"#   NMI hook entry $FFC0:       relocated to ${NMI_HOOK_NEW_CPU:04X} (bank 7 free)")
     print(f"#   NMI vector $FFFA:           ${NMI_HOOK_OLD_CPU:04X} -> ${NMI_HOOK_NEW_CPU:04X}")
+    print(f"#   title rebrand:              file 0x{TITLE_OLD_FILE:06X} (13 bytes) -> "
+          f"0x{TITLE_NEW_FILE:06X} (8 bytes, mutually-free in PRG0+PRG1)")
+
+    # Generate the expected-vanilla sidecar manifest. The validator at apply
+    # time uses this to refuse to silently overwrite seed-modified bytes.
+    new_records = list(parse(io.BytesIO(new_ips)))
+    expected_per_offset = {
+        off: bytes(vanilla[off:off + len(payload)])
+        for off, payload in new_records
+    }
+
+    if args.prg1:
+        prg1_bytes = Path(args.prg1).read_bytes()
+        prg1_sha1 = hashlib.sha1(prg1_bytes).hexdigest()
+        if prg1_sha1 != VANILLA_SHA1S["prg1"]:
+            print(f"WARN: --prg1 ROM SHA1 {prg1_sha1} does not match the known "
+                  f"PRG1 hash {VANILLA_SHA1S['prg1']}")
+        cross_diffs = [
+            off for off, want in expected_per_offset.items()
+            if prg1_bytes[off:off + len(want)] != want
+        ]
+        if cross_diffs:
+            print(f"WARN: {len(cross_diffs)} patch site(s) have different vanilla "
+                  f"bytes between PRG0 and PRG1; single-IPS support broken.")
+            for off in cross_diffs:
+                print(f"        0x{off:06X}")
+        else:
+            print("# Cross-variant check: every patch site has identical bytes "
+                  "between PRG0 and PRG1 vanilla (single IPS supports both).")
+
+    manifest = {
+        "patch_name": "emu-coop-plus",
+        "ips": patch_path.name,
+        "vanilla_sha1": VANILLA_SHA1S,
+        "expected": {
+            f"0x{off:06X}": want.hex()
+            for off, want in expected_per_offset.items()
+        },
+    }
+    manifest_path = patch_path.with_suffix(".expected.json")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"# Manifest: {manifest_path} ({manifest_path.stat().st_size} bytes, "
+          f"{len(expected_per_offset)} expected-vanilla entries)")
 
 
 if __name__ == "__main__":

@@ -73,59 +73,51 @@ def test_function_kind_invokes_callback():
     assert captured == [(5, 2, True)]
 
 
-from bridge_core.cc_client import CCClient
+from bridge_core.memory_endpoint import DictMemoryEndpoint
 from bridge_core.modes import tloz_all
 from bridge_core.sync_engine import SyncEngine
 
-from .mock_cc_server import MockCCServer
 
-
-def make_engine() -> tuple[SyncEngine, MockCCServer]:
-    server = MockCCServer()
-    client = CCClient(server.serial)
-    engine = SyncEngine(cc_client=client, mode=tloz_all)
-    return engine, server
+def make_engine(memory=None) -> tuple[SyncEngine, DictMemoryEndpoint]:
+    endpoint = DictMemoryEndpoint(memory or {})
+    engine = SyncEngine(endpoint=endpoint, mode=tloz_all)
+    return engine, endpoint
 
 
 def test_sync_engine_starts_idle():
-    engine, _server = make_engine()
+    engine, _endpoint = make_engine()
     assert engine.did_cache is False
     assert engine.is_game_running({0x12: 0x0}) is False
 
 
 def test_sync_engine_detects_running():
-    engine, _server = make_engine()
+    engine, _endpoint = make_engine()
     assert engine.is_game_running({0x12: 0x5}) is True
 
 
 def test_sync_engine_caches_on_first_running_tick():
-    engine, server = make_engine()
-    server.set_ram(0x0657, 0)  # no sword
-    server.set_ram(0x12, 0x5)  # running
+    engine, _endpoint = make_engine({0x0657: 0, 0x12: 0x5})
     engine.check_first_running({0x0657: 0, 0x12: 0x5})
     assert engine.did_cache is True
     assert engine.cache[0x0657] == 0
 
 
 def test_sync_engine_handle_table_writes_to_ram():
-    engine, server = make_engine()
-    server.set_ram(0x0657, 0)
+    engine, endpoint = make_engine({0x0657: 0})
     engine.cache[0x0657] = 0
-    msgs = engine.handle_table({"addr": 0x0657, "value": 1})
-    server.step()
-    assert server.ram[0x0657] == 1
+    engine.handle_table({"addr": 0x0657, "value": 1})
+    assert endpoint.read_byte(0x0657) == 1
 
 
 def test_sync_engine_handle_table_emits_message():
-    engine, server = make_engine()
-    server.set_ram(0x0657, 0)
+    engine, _endpoint = make_engine({0x0657: 0})
     engine.cache[0x0657] = 0
     msgs = engine.handle_table({"addr": 0x0657, "value": 1})
     assert any("Wood Sword" in m for m in msgs)
 
 
 def test_sync_engine_resync_clears_cache():
-    engine, _server = make_engine()
+    engine, _endpoint = make_engine()
     engine.cache[0x0657] = 1
     engine.did_cache = True
     engine.resync()

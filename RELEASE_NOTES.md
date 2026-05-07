@@ -1,15 +1,20 @@
-# emu-coop-plus v2.0 beta 2 — release notes
+# emu-coop-plus v2.0 beta 3 — release notes
 
-Second community-testing build of the EDN8 hardware bridge for emu-coop. Re-rolls v2.0 beta 1 with a compatibility fix for additional Z1R seed flagsets that the first beta couldn't apply cleanly. This is a **pre-release**; expect rough edges around reconnect timing and rare error paths. Stable v2.0 follows after community testing.
+Third community-testing build of the EDN8 hardware bridge for emu-coop. Adds support for the second-revision (Rev A / PRG1) Z1 ROM, plus a defensive validator that refuses to silently overwrite randomizer-modified bytes. This is a **pre-release**; expect rough edges around reconnect timing and rare error paths. Stable v2.0 follows after community testing.
 
 ## Which file do I download?
 
 | You play on… | Download | Size |
 |---|---|---|
-| **A real NES with an Everdrive Pro N8 cart** | `emu-coop-plus-2.0-beta2-edn8.exe` | ~11 MB |
-| **FCEUX (or anything Lua-compatible)** | `emu-coop-plus-2.0-beta2-fceux.zip` | ~few hundred KB |
+| **A real NES with an Everdrive Pro N8 cart** | `emu-coop-plus-2.0-beta3-edn8.exe` | ~11 MB |
+| **FCEUX (or anything Lua-compatible)** | `emu-coop-plus-2.0-beta3-fceux.zip` | ~few hundred KB |
 
 You can also play **EDN8 against FCEUX** — that's the headline feature of this release. Both ends use the same shared cloud relay; they pair by an agreed-on session code.
+
+## What's new in v2.0 beta 3
+
+- **PRG1 (Rev A) ROM support.** Both PRG0 (the more common original release) and PRG1 (the bug-fix revision) Z1 ROMs are now supported by the same patch. Previously the patch's title-screen rename collided with title-screen tile data that exists in PRG1 but not PRG0; the rename has been shortened from `EMU-COOP-PLUS` to `EMU-COOP` and repositioned into a region that is blank padding in both revisions.
+- **Patch-time validator.** The bridge now checks every ROM region the patch needs to write into and refuses to apply if the input has been modified there. Practical effect: if a Z1R seed (or any other modder) has changed bytes the patch needs to use, you'll get a clear error listing the conflicting offsets instead of a silently-corrupted ROM. Vanilla and clean Z1R seeds apply as before.
 
 ## What's new in v2.0 beta 2
 
@@ -52,7 +57,7 @@ Both Lua and bridge sides now correctly handle a partner disconnect at any point
 
 ### EDN8 / real NES players
 
-1. Download `emu-coop-plus-2.0-beta2-edn8.exe`
+1. Download `emu-coop-plus-2.0-beta3-edn8.exe`
 2. Plug your EDN8 into your PC over USB and into your NES, then power on the NES
 3. Run the .exe — three-screen flow walks you through ROM patching, USB upload, relay connection, and pairing
 4. On the EDN8's on-screen menu, navigate into the new `emu-coop-plus` folder and pick the patched ROM to launch the game
@@ -60,7 +65,7 @@ Both Lua and bridge sides now correctly handle a partner disconnect at any point
 
 ### FCEUX players
 
-1. Download `emu-coop-plus-2.0-beta2-fceux.zip` and extract anywhere
+1. Download `emu-coop-plus-2.0-beta3-fceux.zip` and extract anywhere
 2. Launch FCEUX, load your Z1 ROM
 3. From the FCEUX Lua menu, load `coop.lua` from the extracted folder
 4. In the connection dialog: Transport=Relay, Host=`129.158.62.225`, Port=`9999`, Session code=your shared code, Mode=`tloz_basic` / `tloz_progress` / `tloz_all`

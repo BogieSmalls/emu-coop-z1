@@ -116,7 +116,21 @@ class ROMSetupScreen(ctk.CTkFrame):
         rom_bytes = self._rom_path.read_bytes()
         patch_bytes = self._load_patch()
         if not ips.is_patched(rom_bytes, patch_bytes):
-            patched = ips.apply(rom_bytes, patch_bytes)
+            try:
+                expected = ips.load_expected_manifest(self._load_manifest())
+                patched = ips.apply_validated(rom_bytes, patch_bytes, expected)
+            except ips.RomConflict as exc:
+                offsets = ", ".join(f"0x{o:06X}" for o, _, _ in exc.mismatches[:6])
+                more = f" (+{len(exc.mismatches) - 6} more)" if len(exc.mismatches) > 6 else ""
+                self._status_label.configure(
+                    text=(
+                        f"✗ ROM modified at {len(exc.mismatches)} patch site(s) "
+                        f"({offsets}{more}). If this is a randomizer seed, "
+                        f"please report the flagstring."
+                    ),
+                    text_color="red",
+                )
+                return
             out_path = self._rom_path.with_name(self._rom_path.stem + "_emucoop.nes")
             out_path.write_bytes(patched)
             self._patched_path = out_path
@@ -191,4 +205,9 @@ class ROMSetupScreen(ctk.CTkFrame):
     @staticmethod
     def _load_patch() -> bytes:
         path = files("bridge_core").joinpath("patches/zelda_emu_coop_plus.ips")
+        return path.read_bytes()
+
+    @staticmethod
+    def _load_manifest() -> bytes:
+        path = files("bridge_core").joinpath("patches/zelda_emu_coop_plus.expected.json")
         return path.read_bytes()

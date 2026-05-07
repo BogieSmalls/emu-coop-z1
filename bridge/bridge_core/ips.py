@@ -9,11 +9,28 @@ IPS is a simple binary patch format:
 from __future__ import annotations
 
 import io
+import json
 from typing import BinaryIO, Iterator
 
 
 class IPSError(Exception):
     pass
+
+
+class RomConflict(Exception):
+    """Raised by apply_validated when input ROM has unexpected bytes at one or
+    more patch sites. The randomizer (or another modder) has changed bytes the
+    patch needs to overwrite; applying anyway would silently corrupt that
+    upstream change. mismatches is a list of (offset, expected, actual) tuples.
+    """
+
+    def __init__(self, mismatches: list[tuple[int, bytes, bytes]]) -> None:
+        self.mismatches = mismatches
+        offsets = ", ".join(f"0x{o:06X}" for o, _, _ in mismatches[:6])
+        more = f" (+{len(mismatches) - 6} more)" if len(mismatches) > 6 else ""
+        super().__init__(
+            f"ROM conflicts with patch at {len(mismatches)} site(s): {offsets}{more}"
+        )
 
 
 def parse(stream: BinaryIO) -> Iterator[tuple[int, bytes]]:
@@ -66,3 +83,43 @@ def is_patched(rom_bytes: bytes, patch_bytes: bytes) -> bool:
         if rom_bytes[offset:offset + len(data)] != data:
             return False
     return True
+
+
+def load_expected_manifest(manifest_bytes: bytes) -> dict[int, bytes]:
+    """Decode an expected-vanilla manifest (JSON sidecar) into {offset: bytes}.
+
+    The manifest is produced by relocate_patch.py at build time and ships next
+    to the IPS. Schema:
+        {
+          "expected": {"0xNNNNNN": "<hex>", ...},
+          ...
+        }
+    """
+    data = json.loads(manifest_bytes)
+    expected = data.get("expected") or {}
+    return {int(k, 16): bytes.fromhex(v) for k, v in expected.items()}
+
+
+def apply_validated(
+    rom_bytes: bytes,
+    patch_bytes: bytes,
+    expected: dict[int, bytes],
+) -> bytes:
+    """Apply IPS patch only if every patch site in rom_bytes contains the
+    expected vanilla bytes. Raises RomConflict listing every divergence.
+
+    expected maps each IPS record offset to the bytes the input ROM should
+    have at that offset. Generate it at build time from a vanilla ROM and
+    ship it as a sidecar; see relocate_patch.py for the producer.
+    """
+    records = list(parse(io.BytesIO(patch_bytes)))
+    mismatches: list[tuple[int, bytes, bytes]] = []
+    for offset, data in records:
+        end = offset + len(data)
+        actual = bytes(rom_bytes[offset:end])
+        want = expected.get(offset)
+        if want is None or actual != want:
+            mismatches.append((offset, want or b"", actual))
+    if mismatches:
+        raise RomConflict(mismatches)
+    return apply(rom_bytes, patch_bytes)

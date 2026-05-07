@@ -37,6 +37,11 @@ instead of an emulator, see [bridge/README.md](bridge/README.md). Same shared
 cloud relay, same session-code workflow, same Z1 modes — just with a USB cable
 to the cart instead of FCEUX.
 
+## What's new in v2.0 beta 3
+
+- PRG1 (Rev A) Z1 ROM support. Both PRG0 and PRG1 vanilla ROMs are now supported by a single IPS — the title-screen rename has been shortened to `EMU-COOP` and repositioned into a region that is blank padding in both revisions.
+- Patch-time validator. The bridge now refuses to apply the patch if the input ROM has been modified at any of the regions the patch needs to write into, and reports the conflicting offsets. Vanilla and clean Z1R seeds apply as before.
+
 ## What's new in v2.0 beta 2
 
 - ROM patch is now compatible with more Z1R seeds. Some Z1R flagsets fill bank 6 with seed-specific data, which conflicted with where the previous patch placed its USB protocol code; the patch is now relocated to safe ROM regions clean across every Z1R flagset audited.

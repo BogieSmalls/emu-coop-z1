@@ -16,6 +16,7 @@ from typing import Any
 import serial
 
 from bridge_core.cc_client import CCClient
+from bridge_core.cc_endpoint import CCMemoryEndpoint
 from bridge_core.pipe_client import PipeClient
 from bridge_core.sync_engine import SyncEngine
 
@@ -59,6 +60,7 @@ class SessionWorker:
             self._emit("log", text=f"Opening serial port {cfg['com_port']}")
             sp = serial.Serial(cfg["com_port"], baudrate=115200, timeout=0)
             cc = CCClient(sp)
+            endpoint = CCMemoryEndpoint(cc)
             self._emit("cart_usb", connected=True)
 
             self._emit("log", text=f"Connecting to relay {cfg['relay']}:{cfg['relay_port']}")
@@ -69,7 +71,7 @@ class SessionWorker:
             peer_id = uuid.uuid4().hex
             pipe = PipeClient(socket=sock, code=cfg["code"], peer_id=peer_id)
             pipe._reconnect_enabled = True
-            engine = SyncEngine(cc_client=cc, mode=mode)
+            engine = SyncEngine(endpoint=endpoint, mode=mode)
             if cfg.get("force_send"):
                 engine.force_send = True
 
@@ -130,7 +132,7 @@ class SessionWorker:
                     self._emit("net_partner", paired=True)
 
                 if pipe.state == "ESTABLISHED":
-                    full_snapshot = cc.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                    full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
                     if full_snapshot is not None:
                         running = engine.is_game_running(full_snapshot)
                         self._emit("cart_game", running=running)

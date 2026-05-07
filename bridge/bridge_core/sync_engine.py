@@ -5,7 +5,7 @@ record_changed() is line-by-line equivalent to the Lua function. Other parts
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any
 
 
 def record_changed(
@@ -88,8 +88,7 @@ def record_changed(
     return allow, value
 
 
-from typing import Any
-from bridge_core.cc_client import CCClient
+from bridge_core.memory_endpoint import MemoryEndpoint
 
 
 class SyncEngine:
@@ -100,8 +99,8 @@ class SyncEngine:
     data frames (via the caller) or applies incoming ones (via cc_client).
     """
 
-    def __init__(self, cc_client: CCClient, mode: Any) -> None:
-        self.cc = cc_client
+    def __init__(self, endpoint: MemoryEndpoint, mode: Any) -> None:
+        self.endpoint = endpoint
         self.mode = mode
         self.cache: dict[int, int] = {}
         self.did_cache = False
@@ -151,27 +150,29 @@ class SyncEngine:
         record = self.mode.SYNC.get(addr)
         if record is None:
             return [f"Partner changed unknown address 0x{addr:04X}"]
-        prev_bytes = self._read_ram_byte(addr)
-        allow, value = record_changed(record, t["value"], prev_bytes, receiving=True)
+        previous_value = self.endpoint.read_byte(addr)
+        if previous_value is None:
+            return [f"Could not read address 0x{addr:04X}"]
+        allow, value = record_changed(record, t["value"], previous_value, receiving=True)
         messages: list[str] = []
         if allow:
-            self.cc.send_write_pairs([(addr, value & 0xFF)])
+            self.endpoint.write_pairs([(addr, value & 0xFF)])
             self.cache[addr] = value & 0xFF
             # Receive trigger
             if "receive_trigger" in record:
-                msg = record["receive_trigger"](value, prev_bytes)
+                msg = record["receive_trigger"](value, previous_value)
                 if msg:
                     messages.append(msg)
             # Function-kind messages
             elif "message" in record:
-                msg = record["message"](value, prev_bytes)
+                msg = record["message"](value, previous_value)
                 if msg:
                     messages.append(msg)
             # Single-name items
-            elif "name" in record and value != prev_bytes:
+            elif "name" in record and value != previous_value:
                 messages.append(f"Partner got {record['name']}")
             # Multi-name items
-            elif "name_map" in record and value > 0 and value != prev_bytes:
+            elif "name_map" in record and value > 0 and value != previous_value:
                 idx = value - 1
                 if 0 <= idx < len(record["name_map"]):
                     messages.append(f"Partner got {record['name_map'][idx]}")
@@ -182,16 +183,6 @@ class SyncEngine:
         self.cache.clear()
         self.did_cache = False
         self.force_send = True
-
-    # --- internals ---
-
-    def _read_ram_byte(self, addr: int) -> int:
-        """Synchronous read of a single byte for handle_table prior-value lookup."""
-        self.cc.send_read_addrs([addr])
-        result = self.cc.poll_response(timeout_ms=200)
-        if result and len(result) >= 1:
-            return result[0]
-        return 0
 
     def _build_send_message(self, record: dict, cur: int, prev: int) -> str | None:
         """Local-side analog of handle_table's message construction (for the

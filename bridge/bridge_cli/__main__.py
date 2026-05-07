@@ -21,6 +21,7 @@ import serial
 
 from bridge_core import ips
 from bridge_core.cc_client import CCClient
+from bridge_core.cc_endpoint import CCMemoryEndpoint
 from bridge_core.pipe_client import PipeClient
 from bridge_core.status_sink import ConsoleStatusSink
 from bridge_core.sync_engine import SyncEngine
@@ -31,15 +32,28 @@ POLL_PERIOD = 1.0 / POLL_HZ
 
 def cmd_patch(args: argparse.Namespace) -> int:
     src = Path(args.input).read_bytes()
-    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_emu_coop_plus.ips"
-    patch_bytes = patch_path.read_bytes()
+    patches_dir = Path(__file__).parent.parent / "bridge_core" / "patches"
+    patch_bytes = (patches_dir / "zelda_emu_coop_plus.ips").read_bytes()
+    expected = ips.load_expected_manifest(
+        (patches_dir / "zelda_emu_coop_plus.expected.json").read_bytes()
+    )
     if ips.is_patched(src, patch_bytes):
         print(f"Already patched: {args.input}")
         if args.output:
             Path(args.output).write_bytes(src)
         return 0
-    out = ips.apply(src, patch_bytes)
-    out_path = args.output or args.input.replace(".nes", "_CC.nes")
+    try:
+        out = ips.apply_validated(src, patch_bytes, expected)
+    except ips.RomConflict as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        print(
+            "This ROM has been modified at offsets where emu-coop-plus needs to "
+            "write. If this is a randomizer seed, please report the flagstring "
+            "so we can audit.",
+            file=sys.stderr,
+        )
+        return 2
+    out_path = args.output or args.input.replace(".nes", "_emucoop.nes")
     Path(out_path).write_bytes(out)
     print(f"Patched: {args.input} -> {out_path}")
     return 0
@@ -65,6 +79,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     sink.log(f"Opening serial port {args.port} @ {args.baud}")
     sp = serial.Serial(args.port, baudrate=args.baud, timeout=0)
     cc = CCClient(sp)
+    endpoint = CCMemoryEndpoint(cc)
 
     sink.log(f"Connecting to relay {args.relay}:{args.relay_port}")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -75,7 +90,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     pipe = PipeClient(socket=sock, code=args.code, peer_id=peer_id)
     pipe._reconnect_enabled = True
 
-    engine = SyncEngine(cc_client=cc, mode=mode)
+    engine = SyncEngine(endpoint=endpoint, mode=mode)
     if args.force_send:
         engine.force_send = True
         sink.log("force_send enabled")
@@ -131,7 +146,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if pipe.state == "ESTABLISHED":
                 # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).
                 # Much lighter on the cart's main-loop than scattered reads.
-                full_snapshot = cc.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
                 if full_snapshot is not None:
                     if engine.is_game_running(full_snapshot):
                         if not engine.did_cache:
