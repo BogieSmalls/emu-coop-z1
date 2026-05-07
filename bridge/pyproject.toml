@@ -1,6 +1,6 @@
 [project]
 name = "emu-coop-bridge"
-version = "2.0.0b1"
+version = "2.0.0b2"
 description = "Bridge that lets a real NES (via Everdrive Pro N8) participate in emu-coop sessions"
 requires-python = ">=3.10"
 dependencies = [

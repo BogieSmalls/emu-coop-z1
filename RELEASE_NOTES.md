@@ -1,17 +1,22 @@
-# emu-coop-plus v2.0 beta 1 — release notes
+# emu-coop-plus v2.0 beta 2 — release notes
 
-First community testing build of the working EDN8 hardware bridge for emu-coop. This is a **pre-release**; expect rough edges around reconnect timing and rare error paths. Stable v2.0 follows after community testing.
+Second community-testing build of the EDN8 hardware bridge for emu-coop. Re-rolls v2.0 beta 1 with a compatibility fix for additional Z1R seed flagsets that the first beta couldn't apply cleanly. This is a **pre-release**; expect rough edges around reconnect timing and rare error paths. Stable v2.0 follows after community testing.
 
 ## Which file do I download?
 
 | You play on… | Download | Size |
 |---|---|---|
-| **A real NES with an Everdrive Pro N8 cart** | `emu-coop-plus-2.0-beta1-edn8.exe` | ~11 MB |
-| **FCEUX (or anything Lua-compatible)** | `emu-coop-plus-2.0-beta1-fceux.zip` | ~few hundred KB |
+| **A real NES with an Everdrive Pro N8 cart** | `emu-coop-plus-2.0-beta2-edn8.exe` | ~11 MB |
+| **FCEUX (or anything Lua-compatible)** | `emu-coop-plus-2.0-beta2-fceux.zip` | ~few hundred KB |
 
-You can also play **EDN8 against FCEUX** — that's the headline new feature of this release. Both ends use the same OCI-hosted relay; they pair by an agreed-on session code.
+You can also play **EDN8 against FCEUX** — that's the headline feature of this release. Both ends use the same shared cloud relay; they pair by an agreed-on session code.
 
-## What's in v2.0 beta 1
+## What's new in v2.0 beta 2
+
+- **ROM patch is now compatible with more Z1R seeds.** Some Z1R flagsets fill bank 6 with seed-specific data, which conflicted with where the previous patch placed its USB protocol code. The patch is now relocated to bank 4's free space (clean across every Z1R flagset audited) and a small piece moved to safe bank-7 free space behind the NMI vectors. If you tried v2.0 beta 1 against a seed and saw a corrupted overworld, beta 2 should fix it.
+- **Build/release tooling unified.** The repo now has a single `build-all.ps1` at the root that builds every endpoint, with each artifact landing in its own `dist/<endpoint>/` folder for cleaner organization as more endpoints (MiSTer, etc.) are added in the future.
+
+## Full feature set
 
 ### EDN8 hardware bridge (new)
 

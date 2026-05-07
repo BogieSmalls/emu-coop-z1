@@ -37,6 +37,11 @@ instead of an emulator, see [bridge/README.md](bridge/README.md). Same shared
 cloud relay, same session-code workflow, same Z1 modes — just with a USB cable
 to the cart instead of FCEUX.
 
+## What's new in v2.0 beta 2
+
+- ROM patch is now compatible with more Z1R seeds. Some Z1R flagsets fill bank 6 with seed-specific data, which conflicted with where the previous patch placed its USB protocol code; the patch is now relocated to safe ROM regions clean across every Z1R flagset audited.
+- Build/release tooling unified — single `build-all.ps1` at the repo root, per-endpoint output under `dist/<endpoint>/` for cleaner organization as more endpoints get added.
+
 ## What changed (v2.0 beta 1)
 
 First beta of the **emu-coop-plus** stack — a real NES playing co-op over the internet alongside FCEUX peers. Snapshot for community testing.
