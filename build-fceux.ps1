@@ -1,13 +1,13 @@
-# Builds a zip distribution of emu-coop-plus for FCEUX users.
+# Builds a zip distribution of the FCEUX endpoint.
 #
 # Includes only the FCEUX-relevant files: top-level Lua scripts, the IUP DLLs
 # for the connection dialog, and the modes/, pl/, socket/, vendor/ directories.
 # Excludes the bridge/ (Python EDN8 client), relay/ (server), docs/, tests/,
 # and dist/ that aren't needed by FCEUX players.
 #
-# Usage: powershell -ExecutionPolicy Bypass -File .\build-fceux-package.ps1
+# Usage: powershell -ExecutionPolicy Bypass -File .\build-fceux.ps1
 #
-# Output: dist\emu-coop-plus-<version>.zip
+# Output: dist\fceux\emu-coop-plus-<version>-fceux.zip
 
 $ErrorActionPreference = "Stop"
 Push-Location $PSScriptRoot
@@ -22,9 +22,10 @@ $rawVersion = $versionLine.Matches[0].Groups[1].Value
 $version = $rawVersion -replace '\s+', '-'   # "2.0 beta1" -> "2.0-beta1"
 
 $packageName = "emu-coop-plus-$version-fceux"
-$dist = Join-Path $PSScriptRoot "dist"
-$staging = Join-Path $dist $packageName
-$zipPath = Join-Path $dist "$packageName.zip"
+$endpointDist = Join-Path $PSScriptRoot "dist\fceux"
+New-Item -ItemType Directory -Path $endpointDist -Force | Out-Null
+$staging = Join-Path $endpointDist $packageName
+$zipPath = Join-Path $endpointDist "$packageName.zip"
 
 if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }

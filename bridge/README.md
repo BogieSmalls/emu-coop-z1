@@ -84,6 +84,6 @@ uv run python -m bridge_cli --help  # CLI options
 To build a Windows distributable:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
+powershell -ExecutionPolicy Bypass -File .\build-edn8.ps1
 # Output: dist/bridge.exe
 ```
