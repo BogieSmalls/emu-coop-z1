@@ -137,9 +137,19 @@ class ROMSetupScreen(ctk.CTkFrame):
             self._status_label.configure(
                 text=f"✓ Patched and saved: {out_path.name}", text_color="green"
             )
-        # Optionally upload to EDN8 via edlink-n8.exe
+        # Optionally upload to EDN8 via edlink-n8.exe (also auto-launches the
+        # ROM on the cart). If upload is disabled, surface the SD path so the
+        # user knows what to load from their cart's menu manually.
         if self._upload_var.get() and self._patched_path is not None:
             self._upload_to_edn8(self._patched_path)
+        elif self._patched_path is not None:
+            self._status_label.configure(
+                text=(
+                    f"✓ Patched and saved: {self._patched_path}. "
+                    f"Load this on your cart's menu before continuing."
+                ),
+                text_color="green",
+            )
         # Stash the patched path on the controller for later screens
         self.controller.patched_rom_path = self._patched_path
         self.controller.show_screen("relay_setup")
@@ -178,9 +188,33 @@ class ROMSetupScreen(ctk.CTkFrame):
                     text=f"Upload failed (rc={cp_result.returncode}): {err}",
                     text_color="red",
                 )
+                return
+            # Auto-launch the ROM on the cart so the user doesn't have to navigate
+            # the EDN8 menu manually. Passing the .nes path as the command itself
+            # triggers edlink's cmd_loadApp -> usb.appStart() path which uploads
+            # to usb-games and boots the ROM. Yes, this is a second upload (the
+            # -cp above keeps a permanent copy in emu-coop-plus/), but the ROM is
+            # ~128 KB so the extra USB time is negligible compared to the UX win.
+            launch_result = subprocess.run(
+                [str(edlink), str(file_path)],
+                capture_output=True, text=True, timeout=30,
+            )
+            if launch_result.returncode != 0:
+                err = (launch_result.stderr or launch_result.stdout or "(no output)").strip()[:300]
+                self._status_label.configure(
+                    text=(
+                        f"Uploaded to {EDN8_TARGET_DIR}{file_path.name} but auto-launch "
+                        f"failed (rc={launch_result.returncode}): {err}. "
+                        f"Load it manually from your cart's menu."
+                    ),
+                    text_color="orange",
+                )
             else:
                 self._status_label.configure(
-                    text=f"✓ Patched, saved, and uploaded to {EDN8_TARGET_DIR}{file_path.name}",
+                    text=(
+                        f"✓ Uploaded to {EDN8_TARGET_DIR}{file_path.name} and "
+                        f"launched on cart."
+                    ),
                     text_color="green",
                 )
         except Exception as e:
