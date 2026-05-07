@@ -33,33 +33,29 @@ When you launch `coop.lua`, the connection dialog asks which transport to use.
 ## EDN8 hardware bridge
 
 If you want to play emu-coop on a real NES with an [Everdrive Pro N8](https://krikzz.com/store/home/55-everdrive-n8-pro-nes.html)
-instead of an emulator, see [bridge/README.md](bridge/README.md). Same OCI relay,
-same session-code workflow, same Z1 modes — just with a USB cable to the cart
-instead of FCEUX.
+instead of an emulator, see [bridge/README.md](bridge/README.md). Same shared
+cloud relay, same session-code workflow, same Z1 modes — just with a USB cable
+to the cart instead of FCEUX.
 
 ## What changed (v2.0 beta 1)
 
-This is the first beta of the working **emu-coop-plus** stack — a real NES playing co-op (or DIBS! competitive mode) over the internet alongside FCEUX peers. Snapshot for community testing. Major changes vs. 1.5:
+First beta of the **emu-coop-plus** stack — a real NES playing co-op over the internet alongside FCEUX peers. Snapshot for community testing.
 
-- **EDN8 hardware bridge is feature-complete for v2.0** — three Z1 modes (`tloz_basic`, `tloz_progress`, `tloz_all`) work end-to-end on real hardware, GUI auto-detects the EDN8's COM port, ROM patching + upload to `sd:\emu-coop-plus\` happens in one click via bundled `edlink-n8.exe`.
-- **Reconnect machinery hardened on both sides.** Both Lua and bridge survive a partner disconnect/reconnect at any point. The relay correctly distinguishes a survivor reconnecting (swap socket, stay HALF_BROKEN) from the dropped peer returning (promote to PAIRED), and tolerates fresh peer_ids on each launch (Lua/bridge generate a new uuid per process).
-- **CC framing finally correct.** The years-old "patch crashes after sustained polling" symptom was actually our host code missing the trailing checksum byte that the cart's NMI loop expects. Recovered the correct framing by decompiling Crowd Control's official EverDriveN8ProConnector. With the fix, 1000 sustained 10 Hz reads complete cleanly with no crashes.
-- **In-ROM rebrand to EMU-COOP-PLUS.** The Z1 tile-text "CROWD CONTROL" is replaced with "EMU-COOP-PLUS" in the vendored patch (`bridge/bridge_core/patches/zelda_emu_coop_plus.ips`). Same wire protocol, just our identifier.
-- **Bumped to 2.0 beta1**. Lua compat-version checker treats `beta` as a variant — beta clients only pair with beta clients, protecting stable users from talking to a half-baked release.
+- **EDN8 hardware bridge** — three Z1 modes (`tloz_basic`, `tloz_progress`, `tloz_all`) work end-to-end on real hardware. GUI auto-detects the EDN8's COM port, patches your ROM, and uploads it to the cart's SD card in one click.
+- **Reconnect machinery hardened.** Both Lua and bridge survive a partner disconnect/reconnect at any point; the relay correctly handles dropped peers and accepts fresh per-launch peer-ids.
+- **Bumped to 2.0 beta1**. The Lua compat-version checker treats `beta` as a variant — beta clients only pair with beta clients, protecting stable users from talking to a pre-release build.
 
-**Held back to v2.1:** Bogie's DIBS! competitive modes (`tloz_dibs_easy`, `tloz_dibs_medium`, `tloz_dibs_medium_entrances_on`) — these need bridge-side sync-engine extensions (handler-driven writes to addresses other than the synced one, structured non-scalar wire values) to ship cleanly on both FCEUX and EDN8 simultaneously. Rather than ship FCEUX-only DIBS! and confuse testers, we hold all three until the bridge can host them too.
+**Held back to v2.1:** the DIBS! competitive modes (`tloz_dibs_easy`, `tloz_dibs_medium`, `tloz_dibs_medium_entrances_on`) — they need a few bridge-side sync-engine extensions to ship cleanly on both FCEUX and EDN8 simultaneously, so we hold all three until the bridge can host them too.
 
 ## What changed (v1.5)
 
-- **EDN8 hardware bridge is end-to-end working** — a real NES + Everdrive Pro N8 can now play emu-coop with an FCEUX peer over the same OCI relay, items syncing in real time. Verified hardware end-to-end on 2026-05-06.
-- The bridge's CC USB framing was fixed (we'd been sending frames without the trailing checksum byte; the cart was misaligning by one byte per transaction and the game crashed at exactly 97 reads no matter the rate). Recovered the correct framing by decompiling Crowd Control's official `EverDriveN8ProConnector` and matching its `(L = body_length_with_checksum, body, checksum = sum(body) mod 256)` format.
-- Bridge polling now uses ArrayRead (action 0x01) over a small set of contiguous ranges instead of scattered Read-individual reads, which is much lighter on the cart's main-loop hook and lets Z1's title→overworld transitions complete cleanly while the bridge is connected.
-- Bridge GUI auto-detects the EDN8 (USB Serial Device, VID 0483) and lists it first in the COM port dropdown with a helpful label.
-- The vendored ROM patch is rebranded as `zelda_emu_coop_plus.ips` (Z1 tile-encoded "EMU-COOP-PLUS" replaces "CROWD CONTROL" in the upstream WarpWorld Crowd Control patch — same wire protocol, same functionality, just our identifier).
+- EDN8 hardware bridge end-to-end working — a real NES + Everdrive Pro N8 can play emu-coop with an FCEUX peer over the shared cloud relay.
+- Bridge polling uses ArrayRead over a small set of contiguous ranges, which is light enough on the cart that Z1's title→overworld transitions complete cleanly while the bridge is connected.
+- Bridge GUI auto-detects the EDN8 (USB Serial Device, VID 0483) and lists it first in the COM port dropdown.
 
 ## What changed (v1.4)
 
-- New optional EDN8 hardware bridge (`bridge/`) — Python + CustomTkinter app that lets a real NES with a CC-patched cart join emu-coop sessions as a peer alongside FCEUX clients.
+- New optional EDN8 hardware bridge (`bridge/`) — Python + CustomTkinter app that lets a real NES join emu-coop sessions as a peer alongside FCEUX clients.
 - Bundled as a single ~11 MB `bridge.exe` for Windows; macOS support is best-effort.
 
 ## What changed (v1.3)
