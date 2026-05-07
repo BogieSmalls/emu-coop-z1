@@ -22,6 +22,8 @@ import serial
 from bridge_core import ips
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
+from bridge_core.mister_endpoint import ReadOnlyMisterMemoryEndpoint
+from bridge_core.mister_ra import DevMemRAMirrorSource, FileRAMirrorSource
 from bridge_core.pipe_client import PipeClient
 from bridge_core.status_sink import ConsoleStatusSink
 from bridge_core.sync_engine import SyncEngine
@@ -69,6 +71,24 @@ def cmd_read(args: argparse.Namespace) -> int:
         return 1
     print(" ".join(f"{b:02X}" for b in result))
     return 0
+
+
+def cmd_mister_read(args: argparse.Namespace) -> int:
+    source = (
+        FileRAMirrorSource(args.mirror_file)
+        if args.mirror_file
+        else DevMemRAMirrorSource()
+    )
+    endpoint = ReadOnlyMisterMemoryEndpoint(source)
+    try:
+        snapshot = endpoint.read_ranges([(args.addr, args.length)])
+        if snapshot is None:
+            print("mirror busy or inactive", file=sys.stderr)
+            return 1
+        print(" ".join(f"{snapshot[args.addr + offset]:02X}" for offset in range(args.length)))
+        return 0
+    finally:
+        endpoint.close()
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -202,6 +222,17 @@ def main(argv: list[str] | None = None) -> int:
     p_read.add_argument("--addr", type=lambda s: int(s, 0), required=True)
     p_read.add_argument("--length", type=int, default=1)
 
+    p_mister_read = sub.add_parser(
+        "mister-read",
+        help="One-shot NES RAM read from MiSTer's RA mirror",
+    )
+    p_mister_read.add_argument(
+        "--mirror-file",
+        help="Read a captured RA mirror file instead of mapping /dev/mem",
+    )
+    p_mister_read.add_argument("--addr", type=lambda s: int(s, 0), required=True)
+    p_mister_read.add_argument("--length", type=int, default=1)
+
     p_run = sub.add_parser("run", help="Run the bridge: connect to relay and sync game state")
     p_run.add_argument("--mode", required=True, help="Mode module name, e.g. tloz_all")
     p_run.add_argument("--port", required=True, help="Serial port (e.g. COM3)")
@@ -216,6 +247,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_patch(args)
     elif args.cmd == "read":
         return cmd_read(args)
+    elif args.cmd == "mister-read":
+        return cmd_mister_read(args)
     elif args.cmd == "run":
         return cmd_run(args)
     return 1
