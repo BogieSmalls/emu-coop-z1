@@ -13,7 +13,7 @@ You can also play **EDN8 against FCEUX** — that's the headline feature of this
 
 ## What's new in v2.0 beta 2
 
-- **ROM patch is now compatible with more Z1R seeds.** Some Z1R flagsets fill bank 6 with seed-specific data, which conflicted with where the previous patch placed its USB protocol code. The patch is now relocated to bank 4's free space (clean across every Z1R flagset audited) and a small piece moved to safe bank-7 free space behind the NMI vectors. If you tried v2.0 beta 1 against a seed and saw a corrupted overworld, beta 2 should fix it.
+- **ROM patch is now compatible with more Z1R seeds.** Some Z1R flagsets write seed-specific data to ROM regions the previous patch occupied, which caused a corrupted overworld on those seeds. The patch has been moved to ROM regions that are clean across every Z1R flagset audited. If you tried v2.0 beta 1 against a seed and saw a corrupted overworld, beta 2 should fix it.
 - **Build/release tooling unified.** The repo now has a single `build-all.ps1` at the root that builds every endpoint, with each artifact landing in its own `dist/<endpoint>/` folder for cleaner organization as more endpoints (MiSTer, etc.) are added in the future.
 
 ## Full feature set
@@ -52,7 +52,7 @@ Both Lua and bridge sides now correctly handle a partner disconnect at any point
 
 ### EDN8 / real NES players
 
-1. Download `emu-coop-plus-2.0-beta1-edn8.exe`
+1. Download `emu-coop-plus-2.0-beta2-edn8.exe`
 2. Plug your EDN8 into your PC over USB and into your NES, then power on the NES
 3. Run the .exe — three-screen flow walks you through ROM patching, USB upload, relay connection, and pairing
 4. On the EDN8's on-screen menu, navigate into the new `emu-coop-plus` folder and pick the patched ROM to launch the game
@@ -60,7 +60,7 @@ Both Lua and bridge sides now correctly handle a partner disconnect at any point
 
 ### FCEUX players
 
-1. Download `emu-coop-plus-2.0-beta1-fceux.zip` and extract anywhere
+1. Download `emu-coop-plus-2.0-beta2-fceux.zip` and extract anywhere
 2. Launch FCEUX, load your Z1 ROM
 3. From the FCEUX Lua menu, load `coop.lua` from the extracted folder
 4. In the connection dialog: Transport=Relay, Host=`129.158.62.225`, Port=`9999`, Session code=your shared code, Mode=`tloz_basic` / `tloz_progress` / `tloz_all`
