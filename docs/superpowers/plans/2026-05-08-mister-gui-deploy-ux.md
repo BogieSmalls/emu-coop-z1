@@ -302,10 +302,10 @@ Modify `bridge/bridge.spec` `datas`:
 ```python
 ('bridge_core/mister_payload/manifest.json', 'bridge_core/mister_payload'),
 ('bridge_core/mister_payload/mister-helper.py', 'bridge_core/mister_payload'),
-('bridge_core/mister_payload/NES_emucoop.rbf', 'bridge_core/mister_payload'),
+('bridge_core/mister_payload/NES_emu-coop.rbf', 'bridge_core/mister_payload'),
 ```
 
-If `NES_emucoop.rbf` does not exist yet, do not add the spec entry until the artifact exists; instead have deploy report a blocking “core asset missing” status.
+If `NES_emu-coop.rbf` does not exist yet, do not add the spec entry until the artifact exists; instead have deploy report a blocking “core asset missing” status.
 
 - [ ] **Step 6: Run tests and verify GREEN**
 
@@ -935,7 +935,7 @@ Expected:
 
 - SSH connects
 - `/media/fat/Scripts/emu-coop/mister-helper.py` exists or is uploaded
-- `/media/fat/_Console/NES_emucoop.rbf` exists or is uploaded
+- `/media/fat/_Console/NES_emu-coop.rbf` exists or is uploaded
 - selected ROM exists under `/media/fat/games/NES/emu-coop-plus/`
 - helper is restarted
 - helper TCP port `55355` is reachable
@@ -1023,4 +1023,4 @@ git commit -m "docs(bridge): document MiSTer GUI deploy flow"
 - Use Paramiko SFTP first. Add SCP only if MiSTer’s SSH server lacks SFTP in practice.
 - Keep EDN8 behavior stable. Every GUI and worker change should be tested against EDN8 config as well as MiSTer config.
 - If MiSTer lacks `python3`, stop the deploy flow with a clear error. A compiled helper binary can be a follow-up milestone after the Python helper proves the full path.
-- Do not overwrite the stock upstream `NES.rbf`. Deploy the POC core as `NES_emucoop.rbf`.
+- Do not overwrite the stock upstream `NES.rbf`. Deploy the POC core as `NES_emu-coop.rbf`.

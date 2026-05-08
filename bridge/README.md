@@ -1,13 +1,13 @@
 # emu-coop bridge
 
-Connect a real NES + Everdrive Pro N8 to emu-coop sessions, alongside FCEUX peers.
+Connect a real NES endpoint to emu-coop sessions through EverDrive Pro N8 or MiSTer.
 
 ## What this is
 
 A Windows app (with macOS support best-effort) that:
-- Patches a Z1 ROM with the CC USB protocol
-- Uploads it to your EDN8 (or you can copy manually)
-- Talks to the cart over USB serial to read/write game memory
+- Patches and uploads a Z1 ROM for EDN8
+- Deploys the MiSTer helper/core payload and stages an unpatched source ROM for MiSTer
+- Talks to the selected device to read/write game memory
 - Connects to the emu-coop relay on the internet
 - Pairs with a partner running FCEUX (or another bridge)
 - Syncs items, dungeon progress, and other game state in real time
@@ -15,14 +15,21 @@ A Windows app (with macOS support best-effort) that:
 ## Quick start
 
 1. **Download `bridge.exe`** (single file, ~11 MB).
-2. **Plug in your EDN8** to a USB port.
-3. **Run `bridge.exe`** — it walks you through:
-   - Picking your Z1 ROM (vanilla or Z1R seed; both work)
-   - Auto-detecting your EDN8's COM port
-   - Choosing a session code (any 6+ char string you and your partner agree on)
-   - Connecting to the relay
-4. **Launch the patched ROM** on your NES via the EDN8 menu.
+2. **Run `bridge.exe`** and choose `EverDrive Pro N8` or `MiSTer`.
+3. For **EDN8**, plug in your cart and follow the patch/upload flow:
+   - Pick your Z1 ROM (vanilla or Z1R seed; both work)
+   - Auto-detect your EDN8's COM port
+   - Choose a session code (any 6+ char string you and your partner agree on)
+   - Connect to the relay
+4. For **MiSTer**, enter your MiSTer host/IP, keep the default `root` / `1` credentials unless changed, and deploy:
+   - `mister-helper.py` to `/media/fat/Scripts/emu-coop/`
+   - the custom core as `/media/fat/_Console/NES_emu-coop.rbf`
+   - your source ROM under `/media/fat/games/NES/emu-coop-plus/`
 5. **Play co-op.**
+
+MiSTer support requires the custom odelot fork core artifact to be bundled as
+`bridge_core/mister_payload/NES_emu-coop.rbf`. Until that build artifact exists,
+the GUI and `mister-deploy` command stop with a clear missing-core error.
 
 ## Modes
 
@@ -40,6 +47,12 @@ python -m bridge_cli patch zelda.nes -o zelda_CC.nes
 
 # Run a session
 python -m bridge_cli run --mode tloz_all --port COM3 --code mycode
+
+# Deploy MiSTer helper/core payload
+python -m bridge_cli mister-deploy --host 192.168.0.130
+
+# Run a MiSTer session after helper deployment
+python -m bridge_cli mister-run --mode tloz_all --mister-host 192.168.0.130 --code mycode --enable-writes
 ```
 
 ## Troubleshooting
@@ -48,6 +61,12 @@ python -m bridge_cli run --mode tloz_all --port COM3 --code mycode
 
 EDN8 isn't plugged in, or another program is holding the port. Close any other
 program using the cart and click Connect again.
+
+### "MiSTer core asset missing locally"
+
+The bridge found the helper payload but not `NES_emu-coop.rbf`. Build the custom
+odelot NES core fork and place the `.rbf` at
+`bridge/bridge_core/mister_payload/NES_emu-coop.rbf`, then deploy again.
 
 ### "Partner has incompatible mode (guid mismatch)"
 
@@ -85,5 +104,5 @@ To build a Windows distributable:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build-edn8.ps1
-# Output: dist/bridge.exe
+# Output: ..\dist\edn8\emu-coop-plus-<version>-edn8.exe
 ```
