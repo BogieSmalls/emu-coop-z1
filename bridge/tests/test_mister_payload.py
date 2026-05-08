@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 PAYLOAD_DIR = Path(__file__).parents[1] / "bridge_core" / "mister_payload"
+BRIDGE_DIR = Path(__file__).parents[1]
 
 
 def test_payload_manifest_loads_helper_metadata():
@@ -17,6 +18,14 @@ def test_payload_manifest_loads_helper_metadata():
     assert manifest["roms"]["remote_dir"] == "/media/fat/games/NES/emu-coop-plus"
     assert manifest["core"]["filename"] == "NES_emu-coop.rbf"
     assert manifest["core"]["remote_path"] == "/media/fat/_Console/NES_emu-coop.rbf"
+
+
+def test_pyinstaller_spec_bundles_mister_core_payload():
+    spec = (BRIDGE_DIR / "bridge.spec").read_text(encoding="utf-8")
+
+    assert "bridge_core/mister_payload/manifest.json" in spec
+    assert "bridge_core/mister_payload/mister-helper.py" in spec
+    assert "bridge_core/mister_payload/NES_emu-coop.rbf" in spec
 
 
 def test_payload_helper_script_is_stdlib_only():
