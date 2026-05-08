@@ -17,6 +17,7 @@ import serial
 
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
+from bridge_core.mister_helper import MisterHelperMemoryEndpoint
 from bridge_core.pipe_client import PipeClient
 from bridge_core.sync_engine import SyncEngine
 
@@ -51,16 +52,32 @@ class SessionWorker:
     def _emit(self, kind: str, **kwargs: Any) -> None:
         self._events.put(SessionEvent(kind, **kwargs))
 
+    def _open_endpoint(self, cfg: dict):
+        endpoint_type = cfg.get("endpoint_type", "edn8")
+        if endpoint_type == "edn8":
+            self._emit("log", text=f"Opening serial port {cfg['com_port']}")
+            sp = serial.Serial(cfg["com_port"], baudrate=115200, timeout=0)
+            cc = CCClient(sp)
+            return CCMemoryEndpoint(cc)
+
+        if endpoint_type == "mister":
+            host = cfg.get("mister_host")
+            if not host:
+                raise ValueError("mister_host is required for MiSTer sessions")
+            port = int(cfg.get("mister_port", 55355))
+            timeout = float(cfg.get("mister_timeout", 1.0))
+            self._emit("log", text=f"Connecting to MiSTer helper {host}:{port}")
+            return MisterHelperMemoryEndpoint(host=host, port=port, timeout=timeout)
+
+        raise ValueError(f"unknown endpoint type: {endpoint_type}")
+
     def _run(self) -> None:
         cfg = self._config
         try:
             self._emit("log", text=f"Loading mode: {cfg['mode']}")
             mode = import_module(f"bridge_core.modes.{cfg['mode']}")
 
-            self._emit("log", text=f"Opening serial port {cfg['com_port']}")
-            sp = serial.Serial(cfg["com_port"], baudrate=115200, timeout=0)
-            cc = CCClient(sp)
-            endpoint = CCMemoryEndpoint(cc)
+            endpoint = self._open_endpoint(cfg)
             self._emit("cart_usb", connected=True)
 
             self._emit("log", text=f"Connecting to relay {cfg['relay']}:{cfg['relay_port']}")
@@ -156,7 +173,7 @@ class SessionWorker:
                     time.sleep(sleep)
 
             pipe.close()
-            sp.close()
+            endpoint.close()
             sock.close()
             self._emit("state", state="DISCONNECTED")
         except Exception as e:
