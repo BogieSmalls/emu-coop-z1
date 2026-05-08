@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a first-run MiSTer user experience to the PC bridge: choose EDN8 or MiSTer, enter MiSTer SSH info, deploy missing MiSTer assets over bundled Python SSH support, start `mister-helper`, then run normal emu-coop mode/relay sync.
+**Goal:** Add a first-run MiSTer user experience to the PC bridge: choose hardware type, run a hardware-aware ROM/setup step, deploy missing MiSTer assets over bundled Python SSH support, start `mister-helper`, then run normal emu-coop mode/relay sync.
 
 **Architecture:** Keep EDN8 behavior unchanged and add MiSTer as a parallel endpoint path. The PC bridge owns UX, relay, mode selection, and session loop; MiSTer receives only the custom NES core `.rbf` plus a small helper payload. Deployment uses Paramiko for SSH commands and SFTP upload, with a simple shell fallback if SFTP is unavailable.
 
@@ -36,8 +36,8 @@
 - `bridge/bridge_gui/device_select_screen.py`  
   New intro screen: `EverDrive Pro N8` or `MiSTer`.
 
-- `bridge/bridge_gui/mister_setup_screen.py`  
-  New MiSTer setup screen: host/IP, username default `root`, password default `1`, deploy/test button, progress log, continue button.
+- `bridge/bridge_gui/setup_screen.py`  
+  Make the existing ROM setup screen hardware-aware. EDN8 keeps the current patch/upload flow. MiSTer selects the source ROM without patching, collects MiSTer SSH settings, deploys core/helper, and starts `mister-helper`.
 
 - `bridge/bridge_gui/app.py`  
   Register new screens and start on `device_select`.
@@ -407,9 +407,9 @@ git commit -m "feat(bridge): remember MiSTer host settings"
 
 **Files:**
 - Create: `bridge/bridge_gui/device_select_screen.py`
-- Create: `bridge/bridge_gui/mister_setup_screen.py`
 - Create: `bridge/bridge_gui/device_flow.py`
 - Modify: `bridge/bridge_gui/app.py`
+- Modify: `bridge/bridge_gui/setup_screen.py`
 - Test: `bridge/tests/test_gui_device_flow.py`
 
 - [ ] **Step 1: Write failing pure flow tests**
@@ -424,13 +424,19 @@ def test_edn8_device_selection_routes_to_rom_setup():
 ```
 
 ```python
-def test_mister_device_selection_routes_to_mister_setup():
-    assert next_screen_for_device("mister") == "mister_setup"
+def test_mister_device_selection_routes_to_rom_setup():
+    assert next_screen_for_device("mister") == "rom_setup"
 ```
 
 ```python
 def test_mister_setup_config_uses_defaults_and_remembered_host():
-    config = build_mister_setup_config(host="192.168.1.50", username="", password="")
+    config = build_mister_rom_setup_config(
+        rom_path="zelda.nes",
+        host="192.168.1.50",
+        username="",
+        password="",
+    )
+    assert config["rom_path"] == "zelda.nes"
     assert config["mister_host"] == "192.168.1.50"
     assert config["mister_username"] == "root"
     assert config["mister_password"] == "1"
@@ -458,12 +464,13 @@ def next_screen_for_device(device: str) -> str:
     if device == "edn8":
         return "rom_setup"
     if device == "mister":
-        return "mister_setup"
+        return "rom_setup"
     raise ValueError(f"unknown device: {device}")
 
-def build_mister_setup_config(host: str, username: str, password: str) -> dict:
+def build_mister_rom_setup_config(rom_path: str, host: str, username: str, password: str) -> dict:
     return {
         "endpoint_type": "mister",
+        "rom_path": rom_path,
         "mister_host": host.strip(),
         "mister_username": username.strip() or "root",
         "mister_password": password or "1",
@@ -481,12 +488,24 @@ Create `DeviceSelectScreen`:
   - `EverDrive Pro N8`
   - `MiSTer`
 - EDN8 button sets `controller.endpoint_type = "edn8"` and routes to `rom_setup`.
-- MiSTer button sets `controller.endpoint_type = "mister"` and routes to `mister_setup`.
+- MiSTer button sets `controller.endpoint_type = "mister"` and routes to `rom_setup`.
 
-- [ ] **Step 5: Add MiSTer setup screen**
+- [ ] **Step 5: Make ROM setup screen hardware-aware**
 
-Create `MisterSetupScreen`:
+Modify `ROMSetupScreen` so `on_show()` checks `controller.endpoint_type`.
 
+EDN8 mode keeps the current behavior:
+
+- choose Z1 ROM
+- validate NES header
+- apply CC IPS patch when needed
+- optionally upload and auto-launch through EDN8
+- Continue routes to relay setup
+
+MiSTer mode changes the same screen into a MiSTer source ROM/setup step:
+
+- Title: `MiSTer Setup`
+- ROM picker text: choose the Zelda 1 source ROM; no CC patch is applied
 - Host/IP entry:
   - blank first run
   - remembered value on later runs
@@ -494,9 +513,9 @@ Create `MisterSetupScreen`:
 - Password entry default: `1`
 - Button: `Test & Deploy`
 - Status log textbox
-- Continue button disabled until deploy succeeds
+- Continue button disabled until ROM is selected and deploy succeeds
 
-On deploy:
+On MiSTer deploy:
 
 - run `MisterDeployService` in a background thread
 - emit progress to the UI
@@ -506,6 +525,7 @@ On deploy:
 ```python
 controller.mister_config = {
     "endpoint_type": "mister",
+    "rom_path": str(selected_rom_path),
     "mister_host": host,
     "mister_port": 55355,
     "enable_writes": True,
@@ -514,7 +534,7 @@ controller.mister_config = {
 
 Then enable Continue.
 
-- [ ] **Step 6: Register screens and start at device selection**
+- [ ] **Step 6: Register device selection and start there**
 
 Modify `bridge_gui/app.py`:
 
@@ -526,7 +546,6 @@ Register:
 
 ```python
 self._screens["device_select"] = DeviceSelectScreen(...)
-self._screens["mister_setup"] = MisterSetupScreen(...)
 ```
 
 - [ ] **Step 7: Run tests and verify GREEN**
@@ -553,13 +572,13 @@ Expected:
 
 - app opens to Choose Device
 - EDN8 routes to the existing ROM setup screen
-- MiSTer routes to the new MiSTer setup screen
+- MiSTer routes to the same ROM setup screen in MiSTer mode
 
 - [ ] **Step 9: Commit**
 
 ```powershell
-git add bridge/bridge_gui/device_select_screen.py bridge/bridge_gui/mister_setup_screen.py bridge/bridge_gui/device_flow.py bridge/bridge_gui/app.py bridge/tests/test_gui_device_flow.py
-git commit -m "feat(gui): add device selection and MiSTer setup"
+git add bridge/bridge_gui/device_select_screen.py bridge/bridge_gui/device_flow.py bridge/bridge_gui/app.py bridge/bridge_gui/setup_screen.py bridge/tests/test_gui_device_flow.py
+git commit -m "feat(gui): add device selection and MiSTer ROM setup"
 ```
 
 ### Task 5: Device-Aware Relay Setup
@@ -652,8 +671,8 @@ uv run python -m bridge_gui
 
 Expected:
 
-- EDN8 path still shows ROM patching then COM setup.
-- MiSTer path shows MiSTer SSH setup then relay/mode/session setup with no COM requirement.
+- EDN8 path shows ROM patching/upload, then relay/mode/session setup with COM selection.
+- MiSTer path shows source ROM selection plus MiSTer deploy, then relay/mode/session setup with no COM requirement.
 
 - [ ] **Step 7: Commit**
 
@@ -925,10 +944,11 @@ uv run python -m bridge_gui
 Flow:
 
 1. Choose `MiSTer`
-2. Enter your MiSTer IP
-3. Keep username `root`
-4. Keep password `1`
-5. Click `Test & Deploy`
+2. Choose your Zelda 1 source ROM
+3. Enter your MiSTer IP
+4. Keep username `root`
+5. Keep password `1`
+6. Click `Test & Deploy`
 
 Expected:
 
