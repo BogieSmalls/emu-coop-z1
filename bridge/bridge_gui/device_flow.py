@@ -37,3 +37,41 @@ def build_mister_rom_setup_config(
         "mister_port": DEFAULT_MISTER_HELPER_PORT,
         "enable_writes": True,
     }
+
+
+def build_session_config(
+    *,
+    endpoint_type: str,
+    mode: str,
+    relay: str,
+    relay_port: int,
+    code: str,
+    com_port: str | None = None,
+    force_send: bool = False,
+    mister_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    endpoint = endpoint_type.strip().lower() or DEVICE_EDN8
+    base = {
+        "endpoint_type": endpoint,
+        "mode": mode,
+        "relay": relay,
+        "relay_port": int(relay_port),
+        "code": code.strip(),
+        "force_send": bool(force_send),
+    }
+
+    if endpoint == DEVICE_EDN8:
+        if not com_port:
+            raise ValueError("com_port is required for EDN8")
+        base["com_port"] = com_port
+        return base
+
+    if endpoint == DEVICE_MISTER:
+        if not mister_config:
+            raise ValueError("mister_config is required for MiSTer")
+        config = {**base, **mister_config}
+        config["endpoint_type"] = DEVICE_MISTER
+        config.pop("com_port", None)
+        return config
+
+    raise ValueError(f"unknown endpoint type: {endpoint_type}")

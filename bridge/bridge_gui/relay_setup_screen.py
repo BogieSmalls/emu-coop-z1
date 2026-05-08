@@ -4,6 +4,8 @@ from __future__ import annotations
 import customtkinter as ctk
 import serial.tools.list_ports
 
+from bridge_gui.device_flow import DEVICE_EDN8, DEVICE_MISTER, build_session_config
+
 
 AVAILABLE_MODES = ["tloz_basic", "tloz_progress", "tloz_all"]  # extend as more modes are ported
 DEFAULT_RELAY = "129.158.62.225"
@@ -53,7 +55,8 @@ class RelaySetupScreen(ctk.CTkFrame):
         self._code_var.trace_add("write", lambda *_: self._update_connect_state())
 
         # COM port (EDN8 prioritized at the top of the list)
-        ctk.CTkLabel(form, text="COM port:").grid(row=4, column=0, sticky="e", padx=10, pady=8)
+        self._com_label = ctk.CTkLabel(form, text="COM port:")
+        self._com_label.grid(row=4, column=0, sticky="e", padx=10, pady=8)
         com_labels = self._detect_com_port_labels()
         self._com_var = ctk.StringVar(value=com_labels[0] if com_labels else "")
         self._com_menu = ctk.CTkOptionMenu(
@@ -65,11 +68,12 @@ class RelaySetupScreen(ctk.CTkFrame):
 
         # Force send
         self._force_send_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(
+        self._force_send_check = ctk.CTkCheckBox(
             form,
             text="Resending all my state on connect (after a crash)",
             variable=self._force_send_var,
-        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=10, pady=8)
+        )
+        self._force_send_check.grid(row=5, column=0, columnspan=2, sticky="w", padx=10, pady=8)
 
         # Status text
         self._status_label = ctk.CTkLabel(self, text="", text_color="red", wraplength=500)
@@ -115,11 +119,14 @@ class RelaySetupScreen(ctk.CTkFrame):
 
     def _update_connect_state(self) -> None:
         code = self._code_var.get().strip()
-        ok = (
-            len(code) >= 6
-            and len(self._com_var.get()) > 0
-            and self._com_var.get() != "(none detected)"
-        )
+        if self._endpoint_type() == DEVICE_MISTER:
+            ok = len(code) >= 6 and bool(getattr(self.controller, "mister_config", None))
+        else:
+            ok = (
+                len(code) >= 6
+                and len(self._com_var.get()) > 0
+                and self._com_var.get() != "(none detected)"
+            )
         self._connect_btn.configure(state="normal" if ok else "disabled")
 
     def _back(self) -> None:
@@ -130,23 +137,34 @@ class RelaySetupScreen(ctk.CTkFrame):
         try:
             port = int(self._port_var.get())
         except ValueError:
-            self._status_label.configure(text="Port must be a number")
+            self._status_label.configure(text="Port must be a number", text_color="red")
             return
         # Extract bare COM device name from label like "COM5  -  EDN8 (USB Serial Device)"
         com_label = self._com_var.get()
         com_port = com_label.split(" ", 1)[0] if com_label else ""
-        # Stash session config on the controller
-        self.controller.session_config = {
-            "mode": self._mode_var.get(),
-            "relay": self._relay_var.get(),
-            "relay_port": port,
-            "code": self._code_var.get().strip(),
-            "com_port": com_port,
-            "force_send": self._force_send_var.get(),
-        }
+        try:
+            self.controller.session_config = build_session_config(
+                endpoint_type=self._endpoint_type(),
+                mode=self._mode_var.get(),
+                relay=self._relay_var.get(),
+                relay_port=port,
+                code=self._code_var.get(),
+                com_port=com_port,
+                force_send=self._force_send_var.get(),
+                mister_config=getattr(self.controller, "mister_config", None),
+            )
+        except ValueError as exc:
+            self._status_label.configure(text=str(exc), text_color="red")
+            return
         self.controller.show_screen("session")
 
     def on_show(self) -> None:
+        if self._endpoint_type() == DEVICE_MISTER:
+            self._show_mister_fields()
+            self._update_connect_state()
+            return
+
+        self._show_edn8_fields()
         # Re-detect COM ports each time (user may have plugged in cart)
         com_labels = self._detect_com_port_labels()
         if com_labels:
@@ -157,3 +175,23 @@ class RelaySetupScreen(ctk.CTkFrame):
             self._com_menu.configure(values=["(none detected)"])
             self._com_var.set("(none detected)")
         self._update_connect_state()
+
+    def _show_edn8_fields(self) -> None:
+        self._com_label.grid()
+        self._com_menu.grid()
+        self._status_label.configure(text="", text_color="red")
+
+    def _show_mister_fields(self) -> None:
+        self._com_label.grid_remove()
+        self._com_menu.grid_remove()
+        config = getattr(self.controller, "mister_config", None) or {}
+        host = config.get("mister_host", "")
+        port = config.get("mister_port", 55355)
+        self._status_label.configure(
+            text=f"MiSTer helper: {host}:{port}" if host else "MiSTer helper is not configured.",
+            text_color="gray" if host else "red",
+        )
+
+    def _endpoint_type(self) -> str:
+        endpoint = getattr(self.controller, "endpoint_type", DEVICE_EDN8)
+        return endpoint if endpoint == DEVICE_MISTER else DEVICE_EDN8
