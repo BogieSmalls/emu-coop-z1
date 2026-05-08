@@ -21,7 +21,7 @@ build-backend = "setuptools.build_meta"
 packages = ["bridge_core", "bridge_core.modes", "bridge_cli", "bridge_gui"]
 
 [tool.setuptools.package-data]
-"bridge_core" = ["patches/*.ips", "patches/*.json"]
+"bridge_core" = ["patches/*.ips", "patches/*.json", "mister_payload/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

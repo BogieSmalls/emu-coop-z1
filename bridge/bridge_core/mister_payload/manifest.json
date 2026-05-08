@@ -1,0 +1,18 @@
+{
+  "helper": {
+    "filename": "mister-helper.py",
+    "version": "0.1.0",
+    "remote_path": "/media/fat/Scripts/emu-coop/mister-helper.py",
+    "log_path": "/media/fat/Scripts/emu-coop/mister-helper.log",
+    "port": 55355
+  },
+  "roms": {
+    "remote_dir": "/media/fat/games/NES/emu-coop-plus"
+  },
+  "core": {
+    "filename": "NES_emu-coop.rbf",
+    "version": "0.1.0",
+    "remote_path": "/media/fat/_Console/NES_emu-coop.rbf",
+    "required": true
+  }
+}
