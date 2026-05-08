@@ -12,11 +12,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import socket
 import sys
 import time
 import uuid
 from importlib import import_module
+from importlib.resources import files
 from pathlib import Path
 
 import serial
@@ -24,6 +26,7 @@ import serial
 from bridge_core import ips
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
+from bridge_core.mister_deploy import DeployAsset, MisterDeployService, MisterSshConfig
 from bridge_core.mister_endpoint import ReadOnlyMisterMemoryEndpoint
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint, MisterHelperServer
 from bridge_core.mister_mailbox import (
@@ -150,6 +153,72 @@ def cmd_mister_run(args: argparse.Namespace) -> int:
         sink=sink,
         poll_hz=args.poll_hz,
     )
+
+
+def cmd_mister_deploy(args: argparse.Namespace) -> int:
+    try:
+        manifest = _load_mister_payload_manifest()
+        assets = _build_mister_deploy_assets(manifest)
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    service = None
+    try:
+        config = MisterSshConfig(
+            host=args.host,
+            username=args.username,
+            password=args.password,
+            port=args.ssh_port,
+            timeout_s=args.timeout_s,
+        )
+        service = MisterDeployService(
+            config,
+            on_event=lambda event: print(event.message),
+        )
+        service.connect()
+        service.deploy(assets)
+        if args.rom:
+            remote_rom = service.stage_rom(
+                Path(args.rom),
+                manifest["roms"]["remote_dir"],
+            )
+            print(f"ROM staged: {remote_rom}")
+        helper = manifest["helper"]
+        service.restart_helper(helper["remote_path"], port=int(helper["port"]))
+        print("MiSTer deploy complete")
+        return 0
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        if service is not None:
+            service.close()
+
+
+def _load_mister_payload_manifest() -> dict:
+    path = files("bridge_core").joinpath("mister_payload", "manifest.json")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _build_mister_deploy_assets(manifest: dict) -> list[DeployAsset]:
+    helper = manifest["helper"]
+    core = manifest["core"]
+    helper_path = _mister_payload_path(helper["filename"])
+    core_path = _mister_payload_path(core["filename"])
+    if core.get("required", True) and not core_path.is_file():
+        raise FileNotFoundError(f"MiSTer core asset missing locally: {core_path}")
+    return [
+        DeployAsset(helper_path, helper["remote_path"], executable=True),
+        DeployAsset(core_path, core["remote_path"]),
+    ]
+
+
+def _mister_payload_path(filename: str) -> Path:
+    return Path(str(files("bridge_core").joinpath("mister_payload", filename)))
 
 
 def _make_mister_source(mirror_file: str | None):
@@ -356,6 +425,20 @@ def main(argv: list[str] | None = None) -> int:
         help="Apply incoming relay writes through the MiSTer helper",
     )
 
+    p_mister_deploy = sub.add_parser(
+        "mister-deploy",
+        help="Deploy the MiSTer helper and emu-coop NES core over SSH",
+    )
+    p_mister_deploy.add_argument("--host", required=True)
+    p_mister_deploy.add_argument("--username", default="root")
+    p_mister_deploy.add_argument("--password", default="1")
+    p_mister_deploy.add_argument("--ssh-port", type=int, default=22)
+    p_mister_deploy.add_argument("--timeout-s", type=float, default=8.0)
+    p_mister_deploy.add_argument(
+        "--rom",
+        help="Optional Zelda 1 source ROM to stage under /media/fat/games/NES/emu-coop-plus",
+    )
+
     p_run = sub.add_parser("run", help="Run the bridge: connect to relay and sync game state")
     p_run.add_argument("--mode", required=True, help="Mode module name, e.g. tloz_all")
     p_run.add_argument("--port", required=True, help="Serial port (e.g. COM3)")
@@ -376,6 +459,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_mister_helper(args)
     elif args.cmd == "mister-run":
         return cmd_mister_run(args)
+    elif args.cmd == "mister-deploy":
+        return cmd_mister_deploy(args)
     elif args.cmd == "run":
         return cmd_run(args)
     return 1

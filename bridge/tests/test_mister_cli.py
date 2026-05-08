@@ -3,6 +3,134 @@ import bridge_cli.__main__ as cli
 from .mister_mirror_factory import make_nes_ra_mirror
 
 
+def test_mister_deploy_cli_passes_ssh_defaults(monkeypatch, capsys):
+    captured = {}
+
+    class FakeDeployService:
+        def __init__(self, config, on_event=None):
+            captured["config"] = config
+            captured["on_event"] = on_event
+
+        def connect(self):
+            captured["connected"] = True
+
+        def deploy(self, assets):
+            captured["assets"] = assets
+
+        def restart_helper(self, remote_helper_path, port=55355):
+            captured["restart"] = (remote_helper_path, port)
+
+        def close(self):
+            captured["closed"] = True
+
+    monkeypatch.setattr(cli, "MisterDeployService", FakeDeployService, raising=False)
+    monkeypatch.setattr(cli, "_build_mister_deploy_assets", lambda manifest: ["asset"], raising=False)
+    monkeypatch.setattr(
+        cli,
+        "_load_mister_payload_manifest",
+        lambda: {
+            "helper": {"remote_path": "/media/fat/Scripts/emu-coop/mister-helper.py", "port": 55355},
+            "roms": {"remote_dir": "/media/fat/games/NES/emu-coop-plus"},
+        },
+        raising=False,
+    )
+
+    rc = cli.main(["mister-deploy", "--host", "192.168.1.50"])
+
+    assert rc == 0
+    assert captured["config"].host == "192.168.1.50"
+    assert captured["config"].username == "root"
+    assert captured["config"].password == "1"
+    assert captured["config"].port == 22
+    assert captured["assets"] == ["asset"]
+    assert captured["restart"] == ("/media/fat/Scripts/emu-coop/mister-helper.py", 55355)
+    assert captured["closed"] is True
+    assert "MiSTer deploy complete" in capsys.readouterr().out
+
+
+def test_mister_deploy_cli_accepts_custom_username_password_and_rom(
+    tmp_path,
+    monkeypatch,
+):
+    rom = tmp_path / "zelda.nes"
+    rom.write_bytes(b"NES\x1a" + bytes(16))
+    captured = {}
+
+    class FakeDeployService:
+        def __init__(self, config, on_event=None):
+            captured["config"] = config
+
+        def connect(self):
+            return None
+
+        def deploy(self, assets):
+            captured["assets"] = assets
+
+        def stage_rom(self, local_rom_path, remote_rom_dir):
+            captured["stage_rom"] = (local_rom_path, remote_rom_dir)
+            return f"{remote_rom_dir}/zelda.nes"
+
+        def restart_helper(self, remote_helper_path, port=55355):
+            captured["restart"] = (remote_helper_path, port)
+
+        def close(self):
+            captured["closed"] = True
+
+    monkeypatch.setattr(cli, "MisterDeployService", FakeDeployService, raising=False)
+    monkeypatch.setattr(cli, "_build_mister_deploy_assets", lambda manifest: ["asset"], raising=False)
+    monkeypatch.setattr(
+        cli,
+        "_load_mister_payload_manifest",
+        lambda: {
+            "helper": {"remote_path": "/helper.py", "port": 55355},
+            "roms": {"remote_dir": "/media/fat/games/NES/emu-coop-plus"},
+        },
+        raising=False,
+    )
+
+    rc = cli.main(
+        [
+            "mister-deploy",
+            "--host",
+            "192.168.1.50",
+            "--username",
+            "admin",
+            "--password",
+            "secret",
+            "--ssh-port",
+            "2222",
+            "--rom",
+            str(rom),
+        ]
+    )
+
+    assert rc == 0
+    assert captured["config"].username == "admin"
+    assert captured["config"].password == "secret"
+    assert captured["config"].port == 2222
+    assert captured["stage_rom"] == (rom, "/media/fat/games/NES/emu-coop-plus")
+
+
+def test_mister_deploy_cli_reports_missing_local_core(monkeypatch, capsys):
+    monkeypatch.setattr(
+        cli,
+        "_load_mister_payload_manifest",
+        lambda: {"helper": {"remote_path": "/helper.py", "port": 55355}},
+        raising=False,
+    )
+    monkeypatch.setattr(
+        cli,
+        "_build_mister_deploy_assets",
+        lambda manifest: (_ for _ in ()).throw(FileNotFoundError("NES_emu-coop.rbf")),
+        raising=False,
+    )
+
+    rc = cli.main(["mister-deploy", "--host", "192.168.1.50"])
+
+    assert rc == 2
+    assert "NES_emu-coop.rbf" in capsys.readouterr().err
+
+
 def test_mister_read_cli_reads_hex_bytes_from_mirror_file(tmp_path, capsys):
     cpu_ram = bytearray(0x0800)
     cpu_ram[0x0012] = 0x05
