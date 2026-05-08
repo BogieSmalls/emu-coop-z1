@@ -33,9 +33,18 @@ When you launch `coop.lua`, the connection dialog asks which transport to use.
 ## EDN8 hardware bridge
 
 If you want to play emu-coop on a real NES with an [Everdrive Pro N8](https://krikzz.com/store/home/55-everdrive-n8-pro-nes.html)
-instead of an emulator, see [bridge/README.md](bridge/README.md). Same shared
-cloud relay, same session-code workflow, same Z1 modes — just with a USB cable
-to the cart instead of FCEUX.
+or MiSTer instead of an emulator, see [bridge/README.md](bridge/README.md).
+Same shared cloud relay, same session-code workflow, same Z1 modes.
+
+## What's new in v2.0 beta 4
+
+- MiSTer POC support in the bridge. The GUI now starts with a device choice,
+  supports MiSTer SSH setup, deploys the helper/core payload, stages source ROMs
+  under `/media/fat/games/NES/emu-coop-plus/`, and runs sessions through the
+  MiSTer helper endpoint.
+- Added `bridge_cli mister-deploy` for MiSTer bring-up outside the GUI.
+- The custom MiSTer core is intentionally named `NES_emu-coop.rbf` so it does
+  not overwrite the stock upstream `NES.rbf`.
 
 ## What's new in v2.0 beta 3
 
