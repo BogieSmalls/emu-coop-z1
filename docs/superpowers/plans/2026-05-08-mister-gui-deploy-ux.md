@@ -22,12 +22,12 @@
   New testable deploy service around Paramiko. Owns SSH connect, remote command execution, SFTP upload, remote file detection, SHA-256 comparison, helper restart, and readiness checks.
 
 - `bridge/bridge_core/mister_payload/manifest.json`  
-  New payload manifest with helper/core filenames, versions, hashes, remote paths, and helper command template.
+  New payload manifest with helper/core filenames, versions, remote paths, standard ROM staging directory, and helper command template.
 
 - `bridge/bridge_core/mister_payload/mister-helper.py`  
   New standalone MiSTer-side helper script. It should use only Python stdlib and `/dev/mem`, so MiSTer does not need the full PC bridge package or GUI dependencies.
 
-- `bridge/bridge_core/mister_payload/NES_emucoop.rbf`  
+- `bridge/bridge_core/mister_payload/NES_emu-coop.rbf`
   Custom odelot NES core build artifact. This can be added after the Quartus build exists. Until then, deploy should surface “core asset missing locally” instead of pretending deployment succeeded.
 
 - `bridge/bridge_core/user_settings.py`  
@@ -160,6 +160,7 @@ class MisterDeployService:
     def remote_sha256(self, remote_path: str) -> str | None: ...
     def ensure_file(self, asset: DeployAsset) -> bool: ...
     def ensure_python3(self) -> bool: ...
+    def stage_rom(self, local_rom_path: Path, remote_rom_dir: str) -> str: ...
     def restart_helper(self, remote_helper_path: str, port: int = 55355) -> None: ...
     def deploy(self, assets: list[DeployAsset]) -> None: ...
     def close(self) -> None: ...
@@ -171,6 +172,7 @@ Implementation rules:
 - Use `set_missing_host_key_policy(paramiko.AutoAddPolicy())` for the POC.
 - Use SFTP for normal uploads.
 - Use `shlex.quote()` for every remote path inserted into shell commands.
+- Stage MiSTer ROMs under `/media/fat/games/NES/emu-coop-plus/`, mirroring the EDN8 `sd:\emu-coop-plus\` convention without patching the ROM.
 - Remote helper start command:
 
 ```sh
@@ -248,10 +250,13 @@ Create `bridge/bridge_core/mister_payload/manifest.json`:
     "log_path": "/media/fat/Scripts/emu-coop/mister-helper.log",
     "port": 55355
   },
+  "roms": {
+    "remote_dir": "/media/fat/games/NES/emu-coop-plus"
+  },
   "core": {
-    "filename": "NES_emucoop.rbf",
+    "filename": "NES_emu-coop.rbf",
     "version": "0.1.0",
-    "remote_path": "/media/fat/_Console/NES_emucoop.rbf",
+    "remote_path": "/media/fat/_Console/NES_emu-coop.rbf",
     "required": true
   }
 }
@@ -506,6 +511,7 @@ MiSTer mode changes the same screen into a MiSTer source ROM/setup step:
 
 - Title: `MiSTer Setup`
 - ROM picker text: choose the Zelda 1 source ROM; no CC patch is applied
+- selected ROM is uploaded to `/media/fat/games/NES/emu-coop-plus/`
 - Host/IP entry:
   - blank first run
   - remembered value on later runs
@@ -526,6 +532,7 @@ On MiSTer deploy:
 controller.mister_config = {
     "endpoint_type": "mister",
     "rom_path": str(selected_rom_path),
+    "mister_remote_rom_path": "/media/fat/games/NES/emu-coop-plus/<rom filename>",
     "mister_host": host,
     "mister_port": 55355,
     "enable_writes": True,
@@ -905,7 +912,7 @@ git commit -m "build(bridge): package MiSTer deploy support"
 From the odelot core branch `emu-coop-ddram-mailbox-poc`, build the `.rbf` and place it at:
 
 ```text
-bridge/bridge_core/mister_payload/NES_emucoop.rbf
+bridge/bridge_core/mister_payload/NES_emu-coop.rbf
 ```
 
 Expected: deploy service can find the local core asset.
@@ -929,6 +936,7 @@ Expected:
 - SSH connects
 - `/media/fat/Scripts/emu-coop/mister-helper.py` exists or is uploaded
 - `/media/fat/_Console/NES_emucoop.rbf` exists or is uploaded
+- selected ROM exists under `/media/fat/games/NES/emu-coop-plus/`
 - helper is restarted
 - helper TCP port `55355` is reachable
 
