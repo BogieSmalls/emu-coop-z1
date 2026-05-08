@@ -156,7 +156,12 @@ class SyncEngine:
         allow, value = record_changed(record, t["value"], previous_value, receiving=True)
         messages: list[str] = []
         if allow:
-            self.endpoint.write_pairs([(addr, value & 0xFF)])
+            try:
+                wrote = self.endpoint.write_pairs([(addr, value & 0xFF)])
+            except NotImplementedError:
+                wrote = False
+            if not wrote:
+                return [f"Could not write address 0x{addr:04X}"]
             self.cache[addr] = value & 0xFF
             # Receive trigger
             if "receive_trigger" in record:

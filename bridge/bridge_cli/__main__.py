@@ -26,11 +26,19 @@ from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
 from bridge_core.mister_endpoint import ReadOnlyMisterMemoryEndpoint
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint, MisterHelperServer
+from bridge_core.mister_mailbox import (
+    DevMemMailboxMemory,
+    FileMailboxMemory,
+    MisterMailboxMemoryEndpoint,
+    MisterWriteMailbox,
+)
 from bridge_core.mister_ra import DevMemRAMirrorSource, FileRAMirrorSource
 from bridge_core.pipe_client import PipeClient
 from bridge_core.readonly_session import run_readonly_session
 from bridge_core.status_sink import ConsoleStatusSink
 from bridge_core.sync_engine import SyncEngine
+from bridge_core.sync_session import run_sync_session
+from bridge_core.mister_smartcache import MisterSmartCacheMemoryEndpoint
 
 POLL_HZ = 10
 POLL_PERIOD = 1.0 / POLL_HZ
@@ -78,8 +86,7 @@ def cmd_read(args: argparse.Namespace) -> int:
 
 
 def cmd_mister_read(args: argparse.Namespace) -> int:
-    source = _make_mister_source(args.mirror_file)
-    endpoint = ReadOnlyMisterMemoryEndpoint(source)
+    endpoint = _make_mister_read_endpoint(args.mirror_file)
     try:
         snapshot = endpoint.read_ranges([(args.addr, args.length)])
         if snapshot is None:
@@ -92,8 +99,15 @@ def cmd_mister_read(args: argparse.Namespace) -> int:
 
 
 def cmd_mister_helper(args: argparse.Namespace) -> int:
-    source = _make_mister_source(args.mirror_file)
-    endpoint = ReadOnlyMisterMemoryEndpoint(source)
+    read_endpoint = _make_mister_read_endpoint(args.mirror_file)
+    endpoint = read_endpoint
+    if args.enable_writes:
+        mailbox_memory = _make_mister_mailbox_memory(args.mailbox_file)
+        mailbox = MisterWriteMailbox(
+            mailbox_memory,
+            ack_timeout_ms=args.write_timeout_ms,
+        )
+        endpoint = MisterMailboxMemoryEndpoint(read_endpoint, mailbox)
     server = MisterHelperServer((args.host, args.port), endpoint)
     try:
         host, port = server.server_address
@@ -126,7 +140,10 @@ def cmd_mister_run(args: argparse.Namespace) -> int:
 
     peer_id = uuid.uuid4().hex
     pipe = PipeClient(socket=sock, code=args.code, peer_id=peer_id)
-    return run_readonly_session(
+    runner = run_sync_session if args.enable_writes else run_readonly_session
+    if args.enable_writes:
+        sink.log("MiSTer write-capable sync enabled")
+    return runner(
         endpoint=endpoint,
         pipe=pipe,
         mode=mode,
@@ -139,6 +156,18 @@ def _make_mister_source(mirror_file: str | None):
     if mirror_file:
         return FileRAMirrorSource(mirror_file)
     return DevMemRAMirrorSource()
+
+
+def _make_mister_read_endpoint(mirror_file: str | None):
+    if mirror_file:
+        return ReadOnlyMisterMemoryEndpoint(_make_mister_source(mirror_file))
+    return MisterSmartCacheMemoryEndpoint(DevMemMailboxMemory())
+
+
+def _make_mister_mailbox_memory(mailbox_file: str | None):
+    if mailbox_file:
+        return FileMailboxMemory(mailbox_file)
+    return DevMemMailboxMemory()
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -293,6 +322,21 @@ def main(argv: list[str] | None = None) -> int:
         "--mirror-file",
         help="Serve a captured RA mirror file instead of mapping /dev/mem",
     )
+    p_mister_helper.add_argument(
+        "--enable-writes",
+        action="store_true",
+        help="Enable the custom NES core DDRAM write mailbox",
+    )
+    p_mister_helper.add_argument(
+        "--mailbox-file",
+        help="Use a file-backed mailbox instead of mapping /dev/mem",
+    )
+    p_mister_helper.add_argument(
+        "--write-timeout-ms",
+        type=int,
+        default=100,
+        help="Milliseconds to wait for the FPGA mailbox ack",
+    )
 
     p_mister_run = sub.add_parser(
         "mister-run",
@@ -306,6 +350,11 @@ def main(argv: list[str] | None = None) -> int:
     p_mister_run.add_argument("--relay", default="129.158.62.225")
     p_mister_run.add_argument("--relay-port", type=int, default=9999)
     p_mister_run.add_argument("--poll-hz", type=int, default=POLL_HZ)
+    p_mister_run.add_argument(
+        "--enable-writes",
+        action="store_true",
+        help="Apply incoming relay writes through the MiSTer helper",
+    )
 
     p_run = sub.add_parser("run", help="Run the bridge: connect to relay and sync game state")
     p_run.add_argument("--mode", required=True, help="Mode module name, e.g. tloz_all")

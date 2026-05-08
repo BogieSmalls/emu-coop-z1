@@ -121,9 +121,11 @@ def handle_helper_request(request: dict[str, Any], endpoint: MemoryEndpoint) -> 
         return {"ok": True, "frame": frame, "value": value}
     if op == "write_pairs":
         try:
-            endpoint.write_pairs(_coerce_pairs(request.get("pairs", [])))
+            ok = endpoint.write_pairs(_coerce_pairs(request.get("pairs", [])))
         except NotImplementedError:
             return {"ok": False, "error": "writes_not_supported"}
+        if not ok:
+            return {"ok": False, "error": "write_failed"}
         return {"ok": True}
     return {"ok": False, "error": "unknown_op"}
 
