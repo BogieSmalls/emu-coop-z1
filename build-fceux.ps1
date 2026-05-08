@@ -2,12 +2,12 @@
 #
 # Includes only the FCEUX-relevant files: top-level Lua scripts, the IUP DLLs
 # for the connection dialog, and the modes/, pl/, socket/, vendor/ directories.
-# Excludes the bridge/ (Python EDN8 client), relay/ (server), docs/, tests/,
+# Excludes the bridge/ (Python hardware client), relay/ (server), docs/, tests/,
 # and dist/ that aren't needed by FCEUX players.
 #
 # Usage: powershell -ExecutionPolicy Bypass -File .\build-fceux.ps1
 #
-# Output: dist\fceux\emu-coop-plus-<version>-fceux.zip
+# Output: dist\emu\emu-coop-plus-<version>-fceux.zip
 
 $ErrorActionPreference = "Stop"
 Push-Location $PSScriptRoot
@@ -22,7 +22,7 @@ $rawVersion = $versionLine.Matches[0].Groups[1].Value
 $version = $rawVersion -replace '\s+', '-'   # "2.0 beta1" -> "2.0-beta1"
 
 $packageName = "emu-coop-plus-$version-fceux"
-$endpointDist = Join-Path $PSScriptRoot "dist\fceux"
+$endpointDist = Join-Path $PSScriptRoot "dist\emu"
 New-Item -ItemType Directory -Path $endpointDist -Force | Out-Null
 $staging = Join-Path $endpointDist $packageName
 $zipPath = Join-Path $endpointDist "$packageName.zip"

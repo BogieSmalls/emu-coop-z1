@@ -110,6 +110,6 @@ uv run python -m bridge_cli --help  # CLI options
 To build a Windows distributable:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build-edn8.ps1
-# Output: ..\dist\edn8\emu-coop-plus-<version>-edn8.exe
+powershell -ExecutionPolicy Bypass -File .\build-hardware.ps1
+# Output: ..\dist\hardware\emu-coop-plus-<version>-hardware.exe
 ```

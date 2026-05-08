@@ -2,10 +2,10 @@
 #
 # Each endpoint has its own builder script and lands its output in a per-endpoint
 # subdirectory under dist/ at the repo root, so we can keep adding endpoints
-# (MiSTer, Bizhawk, Mesen, etc.) without disturbing the shared layout:
+# (Bizhawk, Mesen, etc.) without disturbing the shared layout:
 #
-#   dist/edn8/emu-coop-plus-<version>-edn8.exe
-#   dist/fceux/emu-coop-plus-<version>-fceux.zip
+#   dist/hardware/emu-coop-plus-<version>-hardware.exe
+#   dist/emu/emu-coop-plus-<version>-fceux.zip
 #   dist/<future-endpoint>/...
 #
 # Usage: powershell -ExecutionPolicy Bypass -File .\build-all.ps1
@@ -15,8 +15,8 @@ Push-Location $PSScriptRoot
 
 # List of endpoint builders. Each entry: (label, script-path-relative-to-repo-root).
 $endpoints = @(
-    @{ label = "EDN8";  script = "bridge\build-edn8.ps1" },
-    @{ label = "FCEUX"; script = "build-fceux.ps1" }
+    @{ label = "Hardware"; script = "bridge\build-hardware.ps1" },
+    @{ label = "FCEUX";    script = "build-fceux.ps1" }
 )
 
 $results = @()
@@ -39,16 +39,18 @@ foreach ($ep in $endpoints) {
     $results += @{ label = $ep.label; status = "ok"; path = $script }
 }
 
-# Final summary listing every artifact under dist/<endpoint>/
+# Final summary listing current endpoint artifacts.
 Write-Host ""
 Write-Host "==> Build summary"
 Write-Host ""
 $dist = Join-Path $PSScriptRoot "dist"
 if (Test-Path $dist) {
-    Get-ChildItem -Path $dist -Directory | ForEach-Object {
-        $endpoint = $_.Name
+    @("hardware", "emu") | ForEach-Object {
+        $endpoint = $_
+        $endpointPath = Join-Path $dist $endpoint
+        if (-not (Test-Path $endpointPath)) { return }
         Write-Host "  dist\$endpoint\"
-        Get-ChildItem -Path $_.FullName -File | ForEach-Object {
+        Get-ChildItem -Path $endpointPath -File | ForEach-Object {
             $sizeMB = [math]::Round($_.Length / 1MB, 2)
             $sizeKB = [math]::Round($_.Length / 1KB, 1)
             $size = if ($_.Length -ge 1MB) { "$sizeMB MB" } else { "$sizeKB KB" }
