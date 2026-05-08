@@ -1,9 +1,102 @@
 """Tiny MiSTer helper protocol for read-only emu-coop POCs."""
 from __future__ import annotations
 
+import json
+import socket
+import socketserver
+from collections.abc import Callable
 from typing import Any
 
 from bridge_core.memory_endpoint import MemoryEndpoint
+
+
+class MisterHelperServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+    def __init__(self, server_address: tuple[str, int], endpoint: MemoryEndpoint) -> None:
+        self.endpoint = endpoint
+        super().__init__(server_address, _MisterHelperRequestHandler)
+
+
+class _MisterHelperRequestHandler(socketserver.StreamRequestHandler):
+    server: MisterHelperServer
+
+    def handle(self) -> None:
+        for line in self.rfile:
+            try:
+                request = json.loads(line.decode("utf-8"))
+                if not isinstance(request, dict):
+                    raise ValueError(f"invalid helper request: {request!r}")
+                response = handle_helper_request(request, self.server.endpoint)
+            except Exception as exc:
+                response = {"ok": False, "error": str(exc)}
+            self.wfile.write(
+                json.dumps(response, separators=(",", ":")).encode("utf-8") + b"\n"
+            )
+
+
+class MisterHelperMemoryEndpoint:
+    """PC-side MemoryEndpoint adapter for a tiny MiSTer helper."""
+
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 55355,
+        timeout: float = 1.0,
+        request: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    ) -> None:
+        self._host = host
+        self._port = port
+        self._timeout = timeout
+        self._request_override = request
+        self.last_frame = 0
+
+    def read_ranges(
+        self,
+        ranges: list[tuple[int, int]],
+        timeout_ms: int = 300,
+    ) -> dict[int, int] | None:
+        response = self._request(
+            {"op": "read_ranges", "ranges": [[base, length] for base, length in ranges]}
+        )
+        self.last_frame = int(response.get("frame", self.last_frame))
+        if not response.get("ok"):
+            return None
+        return {int(addr): int(value) & 0xFF for addr, value in response.get("values", [])}
+
+    def read_byte(self, addr: int, timeout_ms: int = 200) -> int | None:
+        response = self._request({"op": "read_byte", "addr": addr})
+        self.last_frame = int(response.get("frame", self.last_frame))
+        if not response.get("ok"):
+            return None
+        return int(response.get("value", 0)) & 0xFF
+
+    def write_pairs(self, pairs: list[tuple[int, int]]) -> bool:
+        response = self._request(
+            {"op": "write_pairs", "pairs": [[addr, value] for addr, value in pairs]}
+        )
+        if response.get("ok"):
+            return True
+        if response.get("error") == "writes_not_supported":
+            raise NotImplementedError("MiSTer writes require the custom NES core write channel")
+        return False
+
+    def close(self) -> None:
+        return None
+
+    def _request(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self._request_override is not None:
+            return self._request_override(payload)
+        wire = json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n"
+        with socket.create_connection((self._host, self._port), timeout=self._timeout) as sock:
+            sock.sendall(wire)
+            response = sock.makefile("rb").readline()
+        if not response:
+            raise ConnectionError("MiSTer helper closed without a response")
+        decoded = json.loads(response.decode("utf-8"))
+        if not isinstance(decoded, dict):
+            raise ValueError(f"invalid helper response: {decoded!r}")
+        return decoded
 
 
 def handle_helper_request(request: dict[str, Any], endpoint: MemoryEndpoint) -> dict[str, Any]:

@@ -262,6 +262,13 @@ Possible modules:
   same endpoint interface.
 - `bridge_cli mister-read` — diagnostic command for `$0012`, inventory bytes,
   and arbitrary ranges.
+- `bridge_cli mister-helper` — MiSTer-side JSON-line TCP helper for the PC
+  client. For the read-only POC it serves RA mirror reads only and reports
+  writes as unsupported.
+- `bridge_cli mister-run` — PC-side one-way runner. It connects to the MiSTer
+  helper and the normal emu-coop relay, sends `tloz_all` changes outward, and
+  logs incoming partner writes as unsupported until the NES core write path
+  exists.
 - `bridge_cli run --endpoint mister ...` — run the relay client against MiSTer.
 
 The MiSTer endpoint should expose snapshots in the same `{addr: byte}` shape

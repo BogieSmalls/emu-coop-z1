@@ -1,13 +1,12 @@
 import pytest
-
-pytest.skip(
-    "MisterHelperMemoryEndpoint not yet implemented; deferred to v2.0 beta 4 "
-    "alongside the MiSTer integration work.",
-    allow_module_level=True,
-)
+import threading
 
 from bridge_core.mister_endpoint import ReadOnlyMisterMemoryEndpoint
-from bridge_core.mister_helper import MisterHelperMemoryEndpoint, handle_helper_request
+from bridge_core.mister_helper import (
+    MisterHelperMemoryEndpoint,
+    MisterHelperServer,
+    handle_helper_request,
+)
 
 from .mister_mirror_factory import make_nes_ra_mirror
 
@@ -79,3 +78,21 @@ def test_helper_client_preserves_write_not_supported_contract():
 
     with pytest.raises(NotImplementedError):
         endpoint.write_pairs([(0x0657, 1)])
+
+
+def test_helper_server_serves_json_line_reads_over_tcp():
+    cpu_ram = bytearray(0x0800)
+    cpu_ram[0x0012] = 0x05
+    read_endpoint = ReadOnlyMisterMemoryEndpoint(make_nes_ra_mirror(cpu_ram=cpu_ram))
+    server = MisterHelperServer(("127.0.0.1", 0), read_endpoint)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        client = MisterHelperMemoryEndpoint(host=host, port=port)
+
+        assert client.read_byte(0x0012) == 0x05
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
