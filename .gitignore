@@ -1,3 +1,22 @@
 dist/
 .claude/
 .worktrees/
+
+# Quartus/MiSTer generated files
+mister/cores/**/db/
+mister/cores/**/greybox_tmp/
+mister/cores/**/incremental_db/
+mister/cores/**/output_files/
+mister/cores/**/simulation/
+mister/cores/**/hc_output/
+mister/cores/**/hps_isw_handoff/
+mister/cores/**/*.qws
+mister/cores/**/*.sof
+mister/cores/**/*.rpt
+mister/cores/**/*.summary
+mister/cores/**/*.done
+mister/cores/**/*.jdi
+mister/cores/**/*.pin
+mister/cores/**/build_id.v
+mister/cores/**/c5_pin_model_dump.txt
+mister/cores/**/PLLJ_PLLSPE_INFO.txt

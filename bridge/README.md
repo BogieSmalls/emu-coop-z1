@@ -65,8 +65,15 @@ program using the cart and click Connect again.
 ### "MiSTer core asset missing locally"
 
 The bridge found the helper payload but not `NES_emu-coop.rbf`. Build the custom
-odelot NES core fork and place the `.rbf` at
-`bridge/bridge_core/mister_payload/NES_emu-coop.rbf`, then deploy again.
+odelot NES core fork from the repo root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-mister-core.ps1
+```
+
+The script copies the output to
+`bridge/bridge_core/mister_payload/NES_emu-coop.rbf`; deploy again after it
+finishes.
 
 ### "Partner has incompatible mode (guid mismatch)"
 
