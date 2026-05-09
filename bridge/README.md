@@ -1,4 +1,4 @@
-# emu-coop bridge
+# emu-coop hardware bridge
 
 Connect a real NES endpoint to emu-coop sessions through EverDrive Pro N8 or MiSTer.
 
@@ -9,13 +9,17 @@ A Windows app (with macOS support best-effort) that:
 - Deploys the MiSTer helper/core payload and stages an unpatched source ROM for MiSTer
 - Talks to the selected device to read/write game memory
 - Connects to the emu-coop relay on the internet
-- Pairs with a partner running FCEUX (or another bridge)
+- Pairs with FCEUX, EDN8, or MiSTer endpoints through the same relay/session code
 - Syncs items, dungeon progress, and other game state in real time
+
+Any two supported endpoints can be paired together through the relay as long as
+both clients use the same mode: FCEUX <-> FCEUX, FCEUX <-> EDN8, FCEUX <->
+MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, or MiSTer <-> MiSTer.
 
 ## Quick start
 
-1. **Download `bridge.exe`** (single file, ~11 MB).
-2. **Run `bridge.exe`** and choose `EverDrive Pro N8` or `MiSTer`.
+1. **Download `emu-coop-plus-2.0-beta4-hardware.exe`** (single file, ~19 MB).
+2. **Run the .exe** and choose `EverDrive Pro N8` or `MiSTer`.
 3. For **EDN8**, plug in your cart and follow the patch/upload flow:
    - Pick your Z1 ROM (vanilla or Z1R seed; both work)
    - Auto-detect your EDN8's COM port
@@ -27,15 +31,16 @@ A Windows app (with macOS support best-effort) that:
    - your source ROM under `/media/fat/games/NES/emu-coop-plus/`
 5. **Play co-op.**
 
-MiSTer support requires the custom odelot fork core artifact to be bundled as
-`bridge_core/mister_payload/NES_emu-coop.rbf`. Until that build artifact exists,
-the GUI and `mister-deploy` command stop with a clear missing-core error.
+MiSTer support uses the bundled custom odelot fork core artifact,
+`bridge_core/mister_payload/NES_emu-coop.rbf`. Source builds can regenerate it
+with `build-mister-core.ps1`; the GUI and `mister-deploy` command stop with a
+clear missing-core error if it is not present.
 
 ## Modes
 
-The bridge currently supports `tloz_all` (Zelda 1, syncs items + map progress).
-Both peers must select the same mode. Future modes will be added by porting from
-the FCEUX-side `modes/*.lua` files.
+The bridge currently supports the Zelda 1 modes `tloz_basic`, `tloz_progress`,
+and `tloz_all`. Both peers must select the same mode. Future modes will be added
+by porting from the FCEUX-side `modes/*.lua` files.
 
 ## CLI usage (advanced)
 
