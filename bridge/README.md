@@ -118,3 +118,20 @@ To build a Windows distributable:
 powershell -ExecutionPolicy Bypass -File .\build-hardware.ps1
 # Output: ..\dist\hardware\emu-coop-plus-<version>-hardware.exe
 ```
+
+### EDN8 polling diagnostics
+
+To isolate lower-level EDN8 read issues without FCEUX or the relay in the loop,
+run the bridge polling audit against a running CC-patched ROM:
+
+```powershell
+cd bridge
+uv run python audit_bridge_polling.py --port COM5 --pattern tloz_all --duration 300 --stop-on-anomaly
+uv run python audit_bridge_polling.py --port COM5 --pattern inventory --hz 10 --duration 120 --stop-on-anomaly
+uv run python audit_bridge_polling.py --port COM5 --pattern map --hz 2 --duration 120 --stop-on-anomaly
+uv run python audit_bridge_polling.py --port COM5 --pattern running --hz 10 --duration 120
+```
+
+The audit uses the current checksum-correct `CCClient` framing and prints raw
+range bytes when it sees impossible item values or mostly-`FF` / mostly-`00`
+range reads.
