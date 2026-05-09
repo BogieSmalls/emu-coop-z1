@@ -20,6 +20,8 @@ from bridge_core.modes import tloz_all
 from bridge_core.sync_engine import SyncEngine
 
 Range = tuple[int, int]
+ADDRS_CHUNK_SIZE = 100
+SAFE_ADDRS_RANGE_LIMIT = 64
 
 
 def ranges_for_pattern(pattern: str, *, addr: int | None = None, length: int | None = None) -> list[Range]:
@@ -43,6 +45,31 @@ def addresses_for_ranges(ranges: Iterable[Range]) -> list[int]:
     for base, length in ranges:
         addresses.extend(range(base, base + length))
     return addresses
+
+
+def estimated_cc_transactions(ranges: Iterable[Range], *, method: str) -> int:
+    if method == "array":
+        return sum(1 for _base, _length in ranges)
+    if method == "addrs":
+        return sum((length + ADDRS_CHUNK_SIZE - 1) // ADDRS_CHUNK_SIZE for _base, length in ranges)
+    raise ValueError(f"unknown read method: {method}")
+
+
+def audit_shape_warning(ranges: Iterable[Range], *, method: str, allow_heavy: bool) -> str | None:
+    ranges = list(ranges)
+    if method != "addrs" or allow_heavy:
+        return None
+    large_ranges = [(base, length) for base, length in ranges if length > SAFE_ADDRS_RANGE_LIMIT]
+    if not large_ranges:
+        return None
+    formatted = " ".join(f"0x{base:04X}+{length}" for base, length in large_ranges)
+    tx = estimated_cc_transactions(ranges, method=method)
+    return (
+        "refusing high-risk addrs audit over large ranges "
+        f"({formatted}); this shape would issue about {tx} CC transactions per tick. "
+        "Use --method array for full sweeps, narrow --pattern custom/--pattern inventory, "
+        "or pass --allow-heavy only for deliberate stress testing."
+    )
 
 
 def _range_values(snapshot: dict[int, int], base: int, length: int) -> list[int]:
@@ -113,6 +140,11 @@ def run_audit(args: argparse.Namespace) -> int:
     import serial
 
     ranges = ranges_for_pattern(args.pattern, addr=args.addr, length=args.length)
+    warning = audit_shape_warning(ranges, method=args.method, allow_heavy=args.allow_heavy)
+    if warning:
+        print("ERROR: " + warning)
+        return 2
+
     sp = serial.Serial(args.port, baudrate=args.baud, timeout=0)
     client = CCClient(sp)
     period = 1.0 / args.hz
@@ -128,6 +160,10 @@ def run_audit(args: argparse.Namespace) -> int:
         f"duration={args.duration}s timeout_ms={args.timeout_ms}"
     )
     print("# ranges=" + " ".join(f"0x{base:04X}+{length}" for base, length in ranges))
+    print(
+        f"# estimated_cc_transactions_per_tick={estimated_cc_transactions(ranges, method=args.method)} "
+        f"estimated_cc_transactions_per_second={estimated_cc_transactions(ranges, method=args.method) * args.hz:.1f}"
+    )
     print("# Uses bridge_core.cc_client.CCClient checksum-correct framing.")
     print()
 
@@ -189,6 +225,7 @@ def main() -> int:
     parser.add_argument("--summary-every", type=int, default=10)
     parser.add_argument("--abort-after-timeouts", type=int, default=5)
     parser.add_argument("--stop-on-anomaly", action="store_true")
+    parser.add_argument("--allow-heavy", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     return run_audit(parser.parse_args())
 

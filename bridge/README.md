@@ -140,4 +140,7 @@ The audit uses the current checksum-correct `CCClient` framing and prints raw
 range bytes when it sees impossible item values or mostly-`FF` range reads.
 Use `--method array` to exercise CC Action `0x01` contiguous reads, and
 `--method addrs` to exercise CC Action `0x00` individual-address reads over
-the same ranges.
+the same ranges. The `addrs` method is intended for inventory or single-byte
+diagnostics; by default the script refuses large `addrs` sweeps such as
+`tloz_all` or `map` because those fan out into multiple CC transactions per
+tick and can overload the cart.

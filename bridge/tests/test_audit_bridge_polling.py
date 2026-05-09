@@ -2,6 +2,8 @@ from audit_bridge_polling import (
     _read_ranges_with_timings,
     addresses_for_ranges,
     analyze_snapshot,
+    audit_shape_warning,
+    estimated_cc_transactions,
     ranges_for_pattern,
 )
 from bridge_core.modes import tloz_all
@@ -22,6 +24,30 @@ def test_addresses_for_ranges_flattens_ranges():
         0x0658,
         0x0659,
     ]
+
+
+def test_estimated_cc_transactions_counts_array_ranges():
+    assert estimated_cc_transactions(tloz_all.READ_RANGES, method="array") == 5
+
+
+def test_estimated_cc_transactions_counts_addrs_chunks():
+    assert estimated_cc_transactions(tloz_all.READ_RANGES, method="addrs") == 8
+
+
+def test_audit_shape_warning_blocks_large_addrs_ranges():
+    warning = audit_shape_warning(tloz_all.READ_RANGES, method="addrs", allow_heavy=False)
+
+    assert warning is not None
+    assert "refusing high-risk addrs audit" in warning
+    assert "0x067F+128" in warning
+
+
+def test_audit_shape_warning_allows_inventory_addrs():
+    assert audit_shape_warning([(0x0657, 0x26)], method="addrs", allow_heavy=False) is None
+
+
+def test_audit_shape_warning_allows_large_addrs_with_override():
+    assert audit_shape_warning(tloz_all.READ_RANGES, method="addrs", allow_heavy=True) is None
 
 
 def test_analyze_snapshot_reports_implausible_inventory_value():
