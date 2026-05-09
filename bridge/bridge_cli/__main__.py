@@ -40,6 +40,7 @@ from bridge_core.pipe_client import PipeClient
 from bridge_core.readonly_session import run_readonly_session
 from bridge_core.status_sink import ConsoleStatusSink
 from bridge_core.sync_engine import SyncEngine
+from bridge_core.sync_probe import endpoint_error, read_running_probe
 from bridge_core.sync_session import run_sync_session
 from bridge_core.mister_smartcache import MisterSmartCacheMemoryEndpoint
 
@@ -312,15 +313,34 @@ def cmd_run(args: argparse.Namespace) -> int:
                 app_hello_sent = True
 
             if pipe.state == "ESTABLISHED":
-                # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).
-                # Much lighter on the cart's main-loop than scattered reads.
-                full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                try:
+                    running_probe = read_running_probe(endpoint, mode, timeout_ms=300)
+                except Exception as e:
+                    sink.log(f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                    running_probe = None
+                if running_probe is None:
+                    full_snapshot = None
+                elif not running_probe:
+                    if engine.did_cache:
+                        sink.log("Game stopped running; pausing sync")
+                        engine.did_cache = False
+                    full_snapshot = None
+                else:
+                    # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).
+                    # Much lighter on the cart's main-loop than scattered reads.
+                    try:
+                        full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                    except Exception as e:
+                        sink.log(f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                        full_snapshot = None
                 if full_snapshot is not None:
                     if engine.is_game_running(full_snapshot):
                         if not engine.did_cache:
                             to_send = engine.check_first_running(full_snapshot)
                             for addr, value in to_send:
                                 pipe.send_data({"addr": addr, "value": value})
+                        for msg in engine.drain_sleep_queue():
+                            sink.message(msg)
                         for addr, send_value, msg in engine.diff(full_snapshot):
                             pipe.send_data({"addr": addr, "value": send_value})
                             if msg:

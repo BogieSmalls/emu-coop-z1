@@ -69,6 +69,24 @@ def test_readonly_session_sends_tloz_all_changes_outward():
     assert "You got Wood Sword" in sink.messages
 
 
+def test_readonly_session_skips_full_poll_when_running_probe_is_not_running():
+    class RecordingEndpoint(DictMemoryEndpoint):
+        def __init__(self, memory):
+            super().__init__(memory)
+            self.read_ranges_calls = []
+
+        def read_ranges(self, ranges, timeout_ms=300):
+            self.read_ranges_calls.append(ranges)
+            return super().read_ranges(ranges, timeout_ms=timeout_ms)
+
+    endpoint = RecordingEndpoint({0x0012: 0x00, 0x0657: 0x00})
+    session = ReadOnlySyncSession(endpoint=endpoint, pipe=FakePipe(), mode=tloz_all, sink=FakeSink())
+
+    session.tick_once()
+
+    assert endpoint.read_ranges_calls == [[(tloz_all.RUNNING_ADDR, 1)]]
+
+
 def test_readonly_session_logs_incoming_partner_writes_without_applying():
     endpoint = DictMemoryEndpoint({0x0012: 0x05, 0x0657: 0x00})
     pipe = FakePipe()
@@ -81,6 +99,22 @@ def test_readonly_session_logs_incoming_partner_writes_without_applying():
     assert sink.messages == [
         "Partner sent 0x0657=0x01, but MiSTer writes are not supported yet"
     ]
+
+
+def test_readonly_session_keeps_pipe_alive_when_endpoint_poll_times_out():
+    class TimeoutRangesEndpoint(DictMemoryEndpoint):
+        def read_ranges(self, ranges, timeout_ms=300):
+            raise TimeoutError("timed out")
+
+    endpoint = TimeoutRangesEndpoint({0x0012: 0x05})
+    pipe = FakePipe()
+    sink = FakeSink()
+    session = ReadOnlySyncSession(endpoint=endpoint, pipe=pipe, mode=tloz_all, sink=sink)
+
+    session.tick_once()
+
+    assert pipe.state == "ESTABLISHED"
+    assert sink.logs == [("ERROR", "Endpoint read failed: timed out")]
 
 
 def test_readonly_session_validates_partner_mode_hello():

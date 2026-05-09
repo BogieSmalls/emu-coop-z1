@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import struct
 import pytest
 
@@ -29,6 +30,57 @@ async def read_frame(reader):
 
 async def open_peer(host, port):
     return await asyncio.open_connection(host, port)
+
+
+def make_peer(peer_id):
+    return server.Peer(peer_id=peer_id, reader=None, writer=None)
+
+
+def test_frame_tracer_logs_full_payload_by_default(caplog):
+    caplog.set_level(logging.INFO, logger="relay")
+    tracer = server.FrameTracer("abcdef", make_peer("peer-one"), make_peer("peer-two"))
+
+    tracer.feed(
+        encode_frame(
+            {
+                "kind": "data",
+                "body": {"addr": 0x0661, "value": 1, "extra": "kept"},
+            }
+        )
+    )
+
+    assert "peer-o->peer-t" in caplog.text
+    assert '"addr":1633' in caplog.text
+    assert '"extra":"kept"' in caplog.text
+
+
+def test_frame_tracer_summarizes_payload_when_full_payload_logging_disabled(caplog, monkeypatch):
+    monkeypatch.setattr(server, "TRACE_PAYLOADS", False)
+    caplog.set_level(logging.INFO, logger="relay")
+    tracer = server.FrameTracer("abcdef", make_peer("peer-one"), make_peer("peer-two"))
+
+    tracer.feed(
+        encode_frame(
+            {
+                "kind": "data",
+                "body": {"addr": 0x0661, "value": 1, "extra": "omitted"},
+            }
+        )
+    )
+
+    assert '"addr":1633' in caplog.text
+    assert '"value":1' in caplog.text
+    assert "omitted" not in caplog.text
+
+
+def test_frame_tracer_can_be_disabled(caplog, monkeypatch):
+    monkeypatch.setattr(server, "TRACE_FRAMES", False)
+    caplog.set_level(logging.INFO, logger="relay")
+    tracer = server.FrameTracer("abcdef", make_peer("peer-one"), make_peer("peer-two"))
+
+    tracer.feed(encode_frame({"kind": "ping"}))
+
+    assert caplog.text == ""
 
 async def test_pair_basic(relay_running):
     host, port = relay_running

@@ -4,7 +4,7 @@ Small Python asyncio TCP server that pairs emu-coop peers by session code and fo
 
 ## Architecture
 
-The relay is the matchmaking + forwarding component for emu-coop's `RelayPipe` transport. Each peer connects outbound to the relay, sends a `join` frame with a shared session code and a per-launch peer-id, and the relay pairs the first two peers using the same code. After pairing, the relay is a transparent byte forwarder — it never inspects gameplay traffic.
+The relay is the matchmaking + forwarding component for emu-coop's `RelayPipe` transport. Each peer connects outbound to the relay, sends a `join` frame with a shared session code and a per-launch peer-id, and the relay pairs the first two peers using the same code. After pairing, the relay forwards bytes between peers. During the 2.0 beta, diagnostic wire logging is enabled by default so we can inspect forwarded JSON frames when clients crash.
 
 If a paired peer drops, the relay holds the surviving peer's slot for 60 seconds (configurable). If the dropped peer reconnects with the same code + peer_id within that window, the relay re-pairs them and notifies the survivor with a `partner-reconnected` frame, allowing peer-side state resync without restarting either emulator.
 
@@ -14,7 +14,7 @@ If a paired peer drops, the relay holds the surviving peer's slot for 60 seconds
 cd relay
 python -m pip install -e ".[test]"
 python -m relay  # listens on 0.0.0.0:9999
-python -m pytest tests/ -v --timeout=15  # 6 unit tests + 1 opt-in integration
+python -m pytest tests/ -v --timeout=15
 ```
 
 ## Configuration (env vars)
@@ -26,6 +26,11 @@ python -m pytest tests/ -v --timeout=15  # 6 unit tests + 1 opt-in integration
 | `RELAY_TTL_SECONDS` | `600` | Time the first peer can wait alone before relay closes |
 | `RELAY_GRACE_SECONDS` | `60` | Time the survivor is held after partner drops |
 | `RELAY_IDLE_SECONDS` | `30` | Per-connection inactivity timeout (heartbeats reset this) |
+| `RELAY_TRACE_FRAMES` | `1` | Log decoded peer-to-peer frames while forwarding |
+| `RELAY_TRACE_PAYLOADS` | `1` | Log full sanitized JSON payloads; set `0` for summary-only logs |
+| `RELAY_TRACE_PAYLOAD_CHARS` | `4096` | Max characters of sanitized payload text per log line |
+
+Frame tracing and full payload logging are intentionally on by default for the beta. To turn tracing off completely, set `RELAY_TRACE_FRAMES=0`. To keep frame-level diagnostics but avoid full payload dumps, set `RELAY_TRACE_PAYLOADS=0`. Session codes are logged as short hashes rather than raw codes.
 
 ## OCI Always Free deployment
 
@@ -128,7 +133,7 @@ Every frame is 4-byte big-endian length prefix + JSON body. Max frame size: 4 Ki
 | `abort` | `{kind:"abort", reason}` | session terminated; reason is human-readable |
 | `partner-reconnected` | `{kind:"partner-reconnected", peer_id}` | your partner just rejoined; do hello + resync |
 
-Once paired, all peer-to-peer frames are forwarded by the relay without inspection. The peer-to-peer protocol (hello, ping/pong, data, abort) is opaque from the relay's perspective.
+Once paired, all peer-to-peer frames are forwarded by the relay. With beta diagnostic tracing enabled, the relay also decodes complete JSON frames for logging; disabling `RELAY_TRACE_FRAMES` returns it to opaque byte forwarding. The peer-to-peer protocol includes hello, ping/pong, data, abort, and other client-level frames.
 
 ## What's NOT here
 

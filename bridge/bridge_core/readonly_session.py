@@ -7,6 +7,7 @@ from typing import Any
 from bridge_core.memory_endpoint import MemoryEndpoint
 from bridge_core.status_sink import StatusSink
 from bridge_core.sync_engine import SyncEngine
+from bridge_core.sync_probe import endpoint_error, read_running_probe
 
 
 class ReadOnlySyncSession:
@@ -44,7 +45,23 @@ class ReadOnlySyncSession:
                 {"op": "hello", "guid": self.mode.GUID, "version": self.version}
             )
             self.app_hello_sent = True
-        snapshot = self.endpoint.read_ranges(self.mode.READ_RANGES, timeout_ms=300)
+        try:
+            running = read_running_probe(self.endpoint, self.mode, timeout_ms=300)
+        except Exception as exc:
+            self.sink.log(f"Endpoint read failed: {endpoint_error(exc)}", level="ERROR")
+            return
+        if running is None:
+            return
+        if not running:
+            if self.engine.did_cache:
+                self.sink.log("Game stopped running; pausing sync")
+                self.engine.did_cache = False
+            return
+        try:
+            snapshot = self.endpoint.read_ranges(self.mode.READ_RANGES, timeout_ms=300)
+        except Exception as exc:
+            self.sink.log(f"Endpoint read failed: {endpoint_error(exc)}", level="ERROR")
+            return
         if snapshot is None:
             return
         if self.engine.is_game_running(snapshot):

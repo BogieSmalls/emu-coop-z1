@@ -96,6 +96,8 @@ def test_mister_session_applies_incoming_writes_through_helper_endpoint():
     def request(payload):
         requests.append(payload)
         if payload["op"] == "read_byte":
+            if payload["addr"] == tloz_all.RUNNING_ADDR:
+                return {"ok": True, "frame": 1, "value": 0x05}
             return {"ok": True, "frame": 1, "value": 0}
         if payload["op"] == "write_pairs":
             return {"ok": True}
@@ -109,6 +111,162 @@ def test_mister_session_applies_incoming_writes_through_helper_endpoint():
 
     assert any("Wood Sword" in message for message in messages)
     assert requests == [
+        {"op": "read_byte", "addr": 0x0012},
         {"op": "read_byte", "addr": 0x0657},
         {"op": "write_pairs", "pairs": [[0x0657, 1]]},
     ]
+
+
+def test_session_worker_does_not_fail_when_endpoint_poll_times_out(monkeypatch):
+    events = queue.Queue()
+    fake_pipe = None
+
+    class FakeSocket:
+        def connect(self, address):
+            self.address = address
+
+        def setblocking(self, blocking):
+            self.blocking = blocking
+
+        def close(self):
+            pass
+
+    class FakeEndpoint:
+        def read_ranges(self, ranges, timeout_ms=300):
+            fake_pipe.state = "CLOSED"
+            raise TimeoutError("timed out")
+
+        def close(self):
+            pass
+
+    class FakePipe:
+        def __init__(self, socket, code, peer_id):
+            nonlocal fake_pipe
+            fake_pipe = self
+            self.state = "ESTABLISHED"
+            self.sent = []
+            self.on_data = None
+            self.on_abort = None
+            self.on_partner_reconnected = None
+            self._reconnect_enabled = False
+
+        def send_join(self):
+            pass
+
+        def tick(self):
+            pass
+
+        def heartbeat_tick(self):
+            pass
+
+        def send_data(self, body):
+            self.sent.append(body)
+
+        def close(self):
+            self.state = "CLOSED"
+
+    monkeypatch.setattr(session_worker.socket, "socket", lambda *args, **kwargs: FakeSocket())
+    monkeypatch.setattr(session_worker, "MisterHelperMemoryEndpoint", lambda **kwargs: FakeEndpoint())
+    monkeypatch.setattr(session_worker, "PipeClient", FakePipe)
+
+    worker = SessionWorker(
+        {
+            "endpoint_type": "mister",
+            "mister_host": "192.168.0.130",
+            "mister_port": 55355,
+            "mode": "tloz_all",
+            "relay": "129.158.62.225",
+            "relay_port": 9999,
+            "code": "abcdef",
+        },
+        events,
+    )
+
+    worker._run()
+
+    collected = []
+    while not events.empty():
+        collected.append(events.get())
+
+    assert not any(
+        event.kind == "state" and event.data["state"] == "FAILED"
+        for event in collected
+    )
+    assert any(
+        event.kind == "log"
+        and event.data.get("level") == "ERROR"
+        and event.data["text"] == "Endpoint read failed: timed out"
+        for event in collected
+    )
+
+
+def test_session_worker_skips_full_poll_when_running_probe_is_not_running(monkeypatch):
+    events = queue.Queue()
+    read_ranges_calls = []
+    fake_pipe = None
+
+    class FakeSocket:
+        def connect(self, address):
+            self.address = address
+
+        def setblocking(self, blocking):
+            self.blocking = blocking
+
+        def close(self):
+            pass
+
+    class FakeEndpoint:
+        def read_ranges(self, ranges, timeout_ms=300):
+            read_ranges_calls.append(ranges)
+            fake_pipe.state = "CLOSED"
+            return {0x0012: 0x00}
+
+        def close(self):
+            pass
+
+    class FakePipe:
+        def __init__(self, socket, code, peer_id):
+            nonlocal fake_pipe
+            fake_pipe = self
+            self.state = "ESTABLISHED"
+            self.sent = []
+            self.on_data = None
+            self.on_abort = None
+            self.on_partner_reconnected = None
+            self._reconnect_enabled = False
+
+        def send_join(self):
+            pass
+
+        def tick(self):
+            pass
+
+        def heartbeat_tick(self):
+            pass
+
+        def send_data(self, body):
+            self.sent.append(body)
+
+        def close(self):
+            self.state = "CLOSED"
+
+    monkeypatch.setattr(session_worker.socket, "socket", lambda *args, **kwargs: FakeSocket())
+    monkeypatch.setattr(session_worker, "MisterHelperMemoryEndpoint", lambda **kwargs: FakeEndpoint())
+    monkeypatch.setattr(session_worker, "PipeClient", FakePipe)
+
+    worker = SessionWorker(
+        {
+            "endpoint_type": "mister",
+            "mister_host": "192.168.0.130",
+            "mister_port": 55355,
+            "mode": "tloz_all",
+            "relay": "129.158.62.225",
+            "relay_port": 9999,
+            "code": "abcdef",
+        },
+        events,
+    )
+
+    worker._run()
+
+    assert read_ranges_calls == [[(tloz_all.RUNNING_ADDR, 1)]]

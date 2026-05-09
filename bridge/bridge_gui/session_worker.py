@@ -20,6 +20,7 @@ from bridge_core.cc_endpoint import CCMemoryEndpoint
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint
 from bridge_core.pipe_client import PipeClient
 from bridge_core.sync_engine import SyncEngine
+from bridge_core.sync_probe import endpoint_error, read_running_probe
 
 
 class SessionEvent:
@@ -149,7 +150,25 @@ class SessionWorker:
                     self._emit("net_partner", paired=True)
 
                 if pipe.state == "ESTABLISHED":
-                    full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                    try:
+                        running_probe = read_running_probe(endpoint, mode, timeout_ms=300)
+                    except Exception as e:
+                        self._emit("log", text=f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                        running_probe = None
+                    if running_probe is None:
+                        full_snapshot = None
+                    elif not running_probe:
+                        self._emit("cart_game", running=False)
+                        if engine.did_cache:
+                            self._emit("log", text="Game stopped running; pausing sync")
+                            engine.did_cache = False
+                        full_snapshot = None
+                    else:
+                        try:
+                            full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                        except Exception as e:
+                            self._emit("log", text=f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                            full_snapshot = None
                     if full_snapshot is not None:
                         running = engine.is_game_running(full_snapshot)
                         self._emit("cart_game", running=running)
@@ -158,6 +177,8 @@ class SessionWorker:
                                 to_send = engine.check_first_running(full_snapshot)
                                 for addr, value in to_send:
                                     pipe.send_data({"addr": addr, "value": value})
+                            for msg in engine.drain_sleep_queue():
+                                self._emit("message", text=msg)
                             for addr, send_value, msg in engine.diff(full_snapshot):
                                 pipe.send_data({"addr": addr, "value": send_value})
                                 if msg:

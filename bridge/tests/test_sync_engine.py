@@ -103,14 +103,14 @@ def test_sync_engine_caches_on_first_running_tick():
 
 
 def test_sync_engine_handle_table_writes_to_ram():
-    engine, endpoint = make_engine({0x0657: 0})
+    engine, endpoint = make_engine({0x0012: 0x05, 0x0657: 0})
     engine.cache[0x0657] = 0
     engine.handle_table({"addr": 0x0657, "value": 1})
     assert endpoint.read_byte(0x0657) == 1
 
 
 def test_sync_engine_handle_table_emits_message():
-    engine, _endpoint = make_engine({0x0657: 0})
+    engine, _endpoint = make_engine({0x0012: 0x05, 0x0657: 0})
     engine.cache[0x0657] = 0
     msgs = engine.handle_table({"addr": 0x0657, "value": 1})
     assert any("Wood Sword" in m for m in msgs)

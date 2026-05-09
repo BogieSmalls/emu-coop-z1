@@ -89,6 +89,7 @@ def record_changed(
 
 
 from bridge_core.memory_endpoint import MemoryEndpoint
+from bridge_core.sync_probe import endpoint_error, read_running_byte
 
 
 class SyncEngine:
@@ -142,7 +143,7 @@ class SyncEngine:
                 out.append((addr, send_value, msg))
         return out
 
-    def handle_table(self, t: dict) -> list[str]:
+    def handle_table(self, t: dict, *, queue_if_not_running: bool = True) -> list[str]:
         """Apply a partner's data frame to RAM. Returns any user-visible messages."""
         addr = t.get("addr")
         if addr is None:
@@ -150,7 +151,18 @@ class SyncEngine:
         record = self.mode.SYNC.get(addr)
         if record is None:
             return [f"Partner changed unknown address 0x{addr:04X}"]
-        previous_value = self.endpoint.read_byte(addr)
+        if queue_if_not_running:
+            try:
+                running = read_running_byte(self.endpoint, self.mode)
+            except Exception:
+                running = None
+            if not running:
+                self.sleep_queue.append(dict(t))
+                return []
+        try:
+            previous_value = self.endpoint.read_byte(addr)
+        except Exception as exc:
+            return [f"Could not read address 0x{addr:04X}: {endpoint_error(exc)}"]
         if previous_value is None:
             return [f"Could not read address 0x{addr:04X}"]
         allow, value = record_changed(record, t["value"], previous_value, receiving=True)
@@ -160,6 +172,8 @@ class SyncEngine:
                 wrote = self.endpoint.write_pairs([(addr, value & 0xFF)])
             except NotImplementedError:
                 wrote = False
+            except Exception as exc:
+                return [f"Could not write address 0x{addr:04X}: {endpoint_error(exc)}"]
             if not wrote:
                 return [f"Could not write address 0x{addr:04X}"]
             self.cache[addr] = value & 0xFF
@@ -181,6 +195,14 @@ class SyncEngine:
                 idx = value - 1
                 if 0 <= idx < len(record["name_map"]):
                     messages.append(f"Partner got {record['name_map'][idx]}")
+        return messages
+
+    def drain_sleep_queue(self) -> list[str]:
+        queued = self.sleep_queue
+        self.sleep_queue = []
+        messages: list[str] = []
+        for item in queued:
+            messages.extend(self.handle_table(item, queue_if_not_running=False))
         return messages
 
     def resync(self) -> None:
