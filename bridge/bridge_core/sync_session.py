@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from bridge_core import __version__
+from bridge_core.map_write_gate import MapWriteGate
 from bridge_core.memory_endpoint import MemoryEndpoint
 from bridge_core.status_sink import StatusSink
 from bridge_core.sync_engine import SyncEngine
@@ -20,13 +21,14 @@ class SyncSession:
         mode: Any,
         sink: StatusSink,
         version: str = __version__,
+        map_write_gate: MapWriteGate | None = None,
     ) -> None:
         self.endpoint = endpoint
         self.pipe = pipe
         self.mode = mode
         self.sink = sink
         self.version = version
-        self.engine = SyncEngine(endpoint=endpoint, mode=mode)
+        self.engine = SyncEngine(endpoint=endpoint, mode=mode, map_write_gate=map_write_gate)
         self.app_hello_sent = False
         self.last_state: str | None = None
         self.pipe.on_data = self.on_data
@@ -58,6 +60,8 @@ class SyncSession:
                 self.sink.log("Game stopped running; pausing sync")
                 self.engine.did_cache = False
             return
+        for message in self.engine.drain_map_write_gate():
+            self.sink.message(message)
         try:
             snapshot = self.endpoint.read_ranges(self.mode.READ_RANGES, timeout_ms=300)
         except Exception as exc:

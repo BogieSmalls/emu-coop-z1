@@ -27,6 +27,7 @@ from bridge_core import __version__
 from bridge_core import ips
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
+from bridge_core.map_write_gate import MapWriteGate
 from bridge_core.mister_deploy import DeployAsset, MisterDeployService, MisterSshConfig
 from bridge_core.mister_endpoint import ReadOnlyMisterMemoryEndpoint
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint, MisterHelperServer
@@ -260,7 +261,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     pipe = PipeClient(socket=sock, code=args.code, peer_id=peer_id)
     pipe._reconnect_enabled = True
 
-    engine = SyncEngine(endpoint=endpoint, mode=mode)
+    engine = SyncEngine(endpoint=endpoint, mode=mode, map_write_gate=MapWriteGate())
+    sink.log("EDN8 map write gate enabled")
     if args.force_send:
         engine.force_send = True
         sink.log("force_send enabled")
@@ -327,6 +329,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                         engine.did_cache = False
                     full_snapshot = None
                 else:
+                    for msg in engine.drain_map_write_gate():
+                        sink.message(msg)
                     # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).
                     # Much lighter on the cart's main-loop than scattered reads.
                     try:

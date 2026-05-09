@@ -18,6 +18,7 @@ import serial
 from bridge_core import __version__
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
+from bridge_core.map_write_gate import MapWriteGate
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint
 from bridge_core.pipe_client import PipeClient
 from bridge_core.sync_engine import SyncEngine
@@ -90,7 +91,10 @@ class SessionWorker:
             peer_id = uuid.uuid4().hex
             pipe = PipeClient(socket=sock, code=cfg["code"], peer_id=peer_id)
             pipe._reconnect_enabled = True
-            engine = SyncEngine(endpoint=endpoint, mode=mode)
+            map_write_gate = MapWriteGate() if cfg.get("endpoint_type", "edn8") == "edn8" else None
+            if map_write_gate is not None:
+                self._emit("log", text="EDN8 map write gate enabled")
+            engine = SyncEngine(endpoint=endpoint, mode=mode, map_write_gate=map_write_gate)
             if cfg.get("force_send"):
                 engine.force_send = True
 
@@ -165,6 +169,8 @@ class SessionWorker:
                             engine.did_cache = False
                         full_snapshot = None
                     else:
+                        for msg in engine.drain_map_write_gate():
+                            self._emit("message", text=msg)
                         try:
                             full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
                         except Exception as e:

@@ -83,13 +83,14 @@ def test_function_kind_invokes_callback():
 
 
 from bridge_core.memory_endpoint import DictMemoryEndpoint
+from bridge_core.map_write_gate import MapWriteGate
 from bridge_core.modes import tloz_all
 from bridge_core.sync_engine import SyncEngine
 
 
-def make_engine(memory=None) -> tuple[SyncEngine, DictMemoryEndpoint]:
+def make_engine(memory=None, map_write_gate=None) -> tuple[SyncEngine, DictMemoryEndpoint]:
     endpoint = DictMemoryEndpoint(memory or {})
-    engine = SyncEngine(endpoint=endpoint, mode=tloz_all)
+    engine = SyncEngine(endpoint=endpoint, mode=tloz_all, map_write_gate=map_write_gate)
     return engine, endpoint
 
 
@@ -128,6 +129,75 @@ def test_sync_engine_handle_table_rejects_implausible_partner_item_value():
     assert messages == [
         "Ignoring implausible partner change: 0x065B Blue Candle/Red Candle value 255 exceeds max 2"
     ]
+
+
+def test_sync_engine_gates_and_coalesces_incoming_map_writes():
+    gate = MapWriteGate(drain_interval_s=0)
+    engine, endpoint = make_engine({0x0012: 0x05, 0x067F: 0}, map_write_gate=gate)
+
+    assert engine.handle_table({"addr": 0x067F, "value": 0x10}, now=0) == []
+    assert engine.handle_table({"addr": 0x067F, "value": 0x90}, now=0) == []
+
+    assert endpoint.read_byte(0x067F) == 0
+    assert gate.pending_count == 1
+
+    assert engine.drain_map_write_gate(now=0) == []
+
+    assert endpoint.read_byte(0x067F) == 0x90
+    assert gate.pending_count == 0
+
+
+def test_sync_engine_map_write_gate_does_not_delay_inventory_writes():
+    gate = MapWriteGate(drain_interval_s=100)
+    engine, endpoint = make_engine(
+        {0x0012: 0x05, 0x0657: 0, 0x067F: 0},
+        map_write_gate=gate,
+    )
+
+    messages = engine.handle_table({"addr": 0x0657, "value": 1}, now=0)
+
+    assert endpoint.read_byte(0x0657) == 1
+    assert messages == ["Partner got Wood Sword"]
+    assert gate.pending_count == 0
+
+
+def test_sync_engine_map_write_gate_drains_one_write_per_interval():
+    gate = MapWriteGate(drain_interval_s=1.0)
+    engine, endpoint = make_engine(
+        {0x0012: 0x05, 0x067F: 0, 0x0680: 0},
+        map_write_gate=gate,
+    )
+    engine.handle_table({"addr": 0x067F, "value": 0x10}, now=0)
+    engine.handle_table({"addr": 0x0680, "value": 0x80}, now=0)
+
+    engine.drain_map_write_gate(now=0)
+    engine.drain_map_write_gate(now=0.5)
+
+    assert endpoint.read_byte(0x067F) == 0x10
+    assert endpoint.read_byte(0x0680) == 0
+    assert gate.pending_count == 1
+
+    engine.drain_map_write_gate(now=1.0)
+
+    assert endpoint.read_byte(0x0680) == 0x80
+    assert gate.pending_count == 0
+
+
+def test_sync_engine_map_write_gate_waits_until_game_is_running():
+    gate = MapWriteGate(drain_interval_s=0)
+    engine, endpoint = make_engine({0x0012: 0x00, 0x067F: 0}, map_write_gate=gate)
+    engine.handle_table({"addr": 0x067F, "value": 0x10}, now=0)
+
+    engine.drain_map_write_gate(now=0)
+
+    assert endpoint.read_byte(0x067F) == 0
+    assert gate.pending_count == 1
+
+    endpoint.memory[0x0012] = 0x05
+    engine.drain_map_write_gate(now=0)
+
+    assert endpoint.read_byte(0x067F) == 0x10
+    assert gate.pending_count == 0
 
 
 def test_sync_engine_handle_table_emits_message():

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from bridge_core.map_write_gate import MapWriteGate
+
 
 def record_changed(
     record: dict[str, Any],
@@ -104,9 +106,15 @@ class SyncEngine:
     data frames (via the caller) or applies incoming ones (via cc_client).
     """
 
-    def __init__(self, endpoint: MemoryEndpoint, mode: Any) -> None:
+    def __init__(
+        self,
+        endpoint: MemoryEndpoint,
+        mode: Any,
+        map_write_gate: MapWriteGate | None = None,
+    ) -> None:
         self.endpoint = endpoint
         self.mode = mode
+        self.map_write_gate = map_write_gate
         self.cache: dict[int, int] = {}
         self.did_cache = False
         self.force_send = False
@@ -181,7 +189,14 @@ class SyncEngine:
                 out.append((addr, send_value, msg))
         return out
 
-    def handle_table(self, t: dict, *, queue_if_not_running: bool = True) -> list[str]:
+    def handle_table(
+        self,
+        t: dict,
+        *,
+        queue_if_not_running: bool = True,
+        now: float | None = None,
+        _bypass_map_write_gate: bool = False,
+    ) -> list[str]:
         """Apply a partner's data frame to RAM. Returns any user-visible messages."""
         addr = t.get("addr")
         if addr is None:
@@ -192,6 +207,13 @@ class SyncEngine:
         invalid_reason = self.implausible_change_reason(addr, t["value"])
         if invalid_reason:
             return [f"Ignoring implausible partner change: {invalid_reason}"]
+        if (
+            not _bypass_map_write_gate
+            and self.map_write_gate is not None
+            and self._should_gate_map_write(addr, record)
+        ):
+            self.map_write_gate.enqueue(addr, t["value"], now=now)
+            return []
         if queue_if_not_running:
             try:
                 running = read_running_byte(self.endpoint, self.mode)
@@ -237,6 +259,26 @@ class SyncEngine:
                 if 0 <= idx < len(record["name_map"]):
                     messages.append(f"Partner got {record['name_map'][idx]}")
         return messages
+
+    def drain_map_write_gate(self, *, now: float | None = None) -> list[str]:
+        if self.map_write_gate is None or not self.map_write_gate.is_due(now=now):
+            return []
+        try:
+            running = read_running_byte(self.endpoint, self.mode)
+        except Exception:
+            return []
+        if not running:
+            return []
+        item = self.map_write_gate.pop_due(now=now)
+        if item is None:
+            return []
+        addr, value = item
+        return self.handle_table(
+            {"addr": addr, "value": value},
+            queue_if_not_running=False,
+            now=now,
+            _bypass_map_write_gate=True,
+        )
 
     def drain_sleep_queue(self) -> list[str]:
         queued = self.sleep_queue
@@ -289,3 +331,7 @@ class SyncEngine:
         if "name_map" in record:
             return "/".join(record["name_map"])
         return str(record.get("kind", "record"))
+
+    @staticmethod
+    def _should_gate_map_write(addr: int, record: dict) -> bool:
+        return 0x067F <= addr <= 0x07FE and record.get("kind") == "bitOr"
