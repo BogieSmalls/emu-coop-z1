@@ -76,11 +76,15 @@ function recordChanged(record, value, previousValue, receiving)
 		allow = maskedValue ~= previousValue               -- Did operated-on bits change?
 		if receiving then
 			value = OR(maskedValue, previousValue)
+		else
+			value = maskedValue
 		end
 	elseif record.kind == "bitAnd" then
 		allow = maskedValue ~= previousValue               -- Did operated-on bits change?
 		if receiving then
 			value = AND(maskedValue, previousValue)
+		else
+			value = maskedValue
 		end
 	elseif record.kind == "delta" then
 		if not receiving then

@@ -59,10 +59,14 @@ def record_changed(
         allow = masked_value != previous_value
         if receiving:
             value = masked_value | previous_value
+        else:
+            value = masked_value
     elif kind == "bitAnd":
         allow = masked_value != previous_value
         if receiving:
             value = masked_value & previous_value
+        else:
+            value = masked_value
     elif kind == "delta":
         if not receiving:
             allow = masked_value != previous_value
@@ -124,6 +128,15 @@ class SyncEngine:
         record = self.mode.SYNC.get(addr)
         if record is None:
             return None
+        if record.get("kind") in {"bitOr", "bitAnd"} and "mask" in record:
+            size_mask = self._record_size_mask(record)
+            outside_mask = size_mask & ~int(record["mask"])
+            if value & outside_mask:
+                label = self._record_label(record)
+                return (
+                    f"0x{addr:04X} {label} value {value} "
+                    f"has bits outside mask 0x{int(record['mask']):X}"
+                )
         max_value = self._max_plausible_value(record)
         if max_value is None:
             return None
@@ -259,6 +272,15 @@ class SyncEngine:
         if "name" in record:
             return 1
         return None
+
+    @staticmethod
+    def _record_size_mask(record: dict) -> int:
+        size = record.get("size", 1)
+        if size == 2:
+            return 0xFFFF
+        if size == 4:
+            return 0xFFFFFFFF
+        return 0xFF
 
     @staticmethod
     def _record_label(record: dict) -> str:

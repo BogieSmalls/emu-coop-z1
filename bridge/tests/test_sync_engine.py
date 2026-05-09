@@ -59,6 +59,15 @@ def test_bitor_kind_changes_bits():
     assert value == 0b1011  # OR
 
 
+def test_masked_bitor_send_uses_masked_value():
+    record = {"kind": "bitOr", "size": 1, "mask": 0x90}
+
+    allow, value = record_changed(record, value=0x94, previous_value=0x00, receiving=False)
+
+    assert allow is True
+    assert value == 0x90
+
+
 def test_function_kind_invokes_callback():
     captured = []
 
@@ -151,3 +160,19 @@ def test_sync_engine_reports_impossible_single_high_item_change():
     reason = engine.implausible_change_reason(0x065B, 0xFF)
 
     assert reason == "0x065B Blue Candle/Red Candle value 255 exceeds max 2"
+
+
+def test_sync_engine_rejects_masked_overworld_map_garbage_change():
+    engine, _endpoint = make_engine()
+
+    reason = engine.implausible_change_reason(0x067F, 0x94)
+
+    assert reason == "0x067F bitOr value 148 has bits outside mask 0x90"
+
+
+def test_sync_engine_rejects_masked_overworld_map_garbage_snapshot():
+    engine, _endpoint = make_engine()
+
+    reason = engine.implausible_snapshot_reason({0x0012: 0x05, 0x067F: 0x94})
+
+    assert reason == "0x067F bitOr value 148 has bits outside mask 0x90"
