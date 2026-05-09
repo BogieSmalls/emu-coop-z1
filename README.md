@@ -1,47 +1,20 @@
-This is the source code repo for emu-coop. **[Probably you would rather be looking at the project webpage](https://mcclure.github.io/emu-coop/), which has more detail and a downloadable SNES emulator for Windows.**
+# emu-coop-plus
 
-# emu-coop
+emu-coop-plus is a Zelda 1 focused expansion of Andi McClure's emu-coop. It lets two players synchronize game state over the internet so single-player games can be played cooperatively across emulators and hardware.
 
-This directory contains Lua scripts and bridge clients that synchronize game state over the internet, allowing cooperative playthroughs of single-player games. FCEUX uses the Lua scripts directly; EDN8 and MiSTer use the Windows hardware bridge.
+For the v2.0 release line, the core goal is endpoint interoperability: FCEUX, EverDrive Pro N8, and MiSTer can all participate in the same relay/session system. A player on MiSTer can pair with a player on FCEUX, an EDN8 player can pair with a MiSTer player, two hardware players can pair with each other, and FCEUX-to-FCEUX still works.
 
-Each game you want to use this with requires a "mode" file in the modes/ directory. Currently included are modes for Link to the Past, the Link to the Past "Randomizer", Zelda 1 and Super Metroid. **WARNING: Modes are PROGRAMS, like a .exe file. Do not install a mode file unless it came from someone you know and trust.** 
+Mode files are programs, like `.exe` files. Do not install a mode file unless it came from someone you know and trust.
 
-To run, run coop.lua. To run with additional debug messages (more verbose errors, and visibility for every message sent) run debug.lua instead.
+## Supported Endpoints
 
-## Connection modes
+| Endpoint | How it connects | Notes |
+|---|---|---|
+| FCEUX | Lua scripts from the emulator package | Uses `coop.lua` inside FCEUX. |
+| EverDrive Pro N8 / real NES | PC hardware bridge | The bridge patches/uploads the ROM and talks to the cart over USB. |
+| MiSTer | PC hardware bridge plus custom NES core | The bridge deploys `NES_emu-coop.rbf`, starts `mister-helper.py`, and stages ROMs over SSH/SCP. |
 
-emu-coop supports two transports:
-
-- **Direct** — peer-to-peer TCP. One player hosts (listens on a port), the other connects to their address. Best for LAN co-op or players using Tailscale / ZeroTier / Hamachi (which give a routable virtual IP without router setup).
-- **Relay** — both players connect outbound to a small Python relay daemon. No port forwarding required. Self-hosters can run their own (see [relay/README.md](relay/README.md)) on a $5/mo VPS or an Oracle Cloud Always Free VM. This is the normal transport for FCEUX, EDN8, and MiSTer interoperability.
-
-When you launch `coop.lua`, the FCEUX connection dialog asks which transport to
-use. Hardware players use the bridge app instead.
-
-### Quick start (Relay, FCEUX)
-
-1. Both players agree on a session code (any string >= 6 chars, e.g. `pancakes123`). Share via Discord/etc.
-2. Both players launch FCEUX -> load ROM -> load `coop.lua`.
-3. In the connection dialog: Transport=Relay, Host address=`<relay public IP>`, Port=`9999`, Session code=your shared code. Click OK.
-4. Both screens display "Connected to partner" within ~1 second.
-
-### Quick start (Direct, LAN)
-
-Direct mode is for emulator-to-emulator sessions.
-
-1. The host player runs `ipconfig` (Windows) or `ifconfig` (mac/linux) to find their LAN IP.
-2. Host: launch `coop.lua`, Transport=Direct, Host address=`0.0.0.0`, Port=`9999`, Are you the host?=Yes.
-3. Other player: launch `coop.lua`, Transport=Direct, Host address=`<host's LAN IP>`, Port=`9999`, Are you the host?=No.
-
-## Supported endpoints and interoperability
-
-emu-coop-plus v2.0 beta4 supports three Zelda 1 endpoint types:
-
-- **FCEUX** using the Lua scripts from the emulator zip.
-- **EverDrive Pro N8 / real NES** using the hardware bridge.
-- **MiSTer** using the hardware bridge, bundled `NES_emu-coop.rbf` core, and `mister-helper.py`.
-
-Because all three speak through the same relay/session protocol, any two endpoints can pair together as long as both clients use the same release family and mode:
+Any two endpoints can pair together as long as both clients use a compatible release and the same mode:
 
 - FCEUX <-> FCEUX
 - FCEUX <-> EDN8
@@ -50,68 +23,113 @@ Because all three speak through the same relay/session protocol, any two endpoin
 - EDN8 <-> EDN8
 - MiSTer <-> MiSTer
 
-The bridge currently hosts the Zelda 1 modes `tloz_basic`, `tloz_progress`, and `tloz_all`.
+The bridge currently supports the Zelda 1 modes `tloz_basic`, `tloz_progress`, and `tloz_all`.
 
-## Hardware bridge
+## Connectivity
 
-If you want to play emu-coop on a real NES with an [Everdrive Pro N8](https://krikzz.com/store/home/55-everdrive-n8-pro-nes.html)
-or on MiSTer instead of an emulator, use the hardware bridge. See [bridge/README.md](bridge/README.md).
+Older emu-coop releases used IRC as the network backbone. emu-coop-plus replaces that with client-agnostic transports:
 
-Release downloads:
+- **Relay**: both players connect outbound to a small Python relay daemon. This is the normal internet play path and requires no port forwarding.
+- **Direct**: peer-to-peer TCP. This is useful for LAN play or private networks such as Tailscale, ZeroTier, or Hamachi.
+
+The relay protocol is endpoint-neutral. FCEUX Lua clients and hardware bridge clients use the same session-code workflow, so the relay does not care whether a peer is FCEUX, EDN8, MiSTer, or a future client.
+
+Self-hosters can run their own relay; see [relay/README.md](relay/README.md).
+
+## PC Hardware Bridge
+
+The hardware bridge is the Windows app that makes real hardware feel like another emu-coop endpoint.
+
+For **EverDrive Pro N8**, the bridge:
+
+- Validates and patches the user's Zelda 1 ROM.
+- Uploads the patched ROM to the EDN8 over USB.
+- Reads and writes game memory through the EDN8 USB protocol.
+- Joins the shared relay session as a normal peer.
+
+For **MiSTer**, the bridge:
+
+- Connects to MiSTer over SSH using the user-provided host/IP.
+- Deploys the custom `NES_emu-coop.rbf` NES core without overwriting the stock `NES.rbf`.
+- Deploys and starts `mister-helper.py`.
+- Stages source ROMs under `/media/fat/games/NES/emu-coop-plus/`.
+- Reads and writes NES memory through the MiSTer helper/core path.
+
+For bridge details, see [bridge/README.md](bridge/README.md).
+
+## Downloads
+
+Current beta4 release:
 
 - Hardware bridge for EDN8 and MiSTer: `dist/hardware/emu-coop-plus-2.0-beta4-hardware.exe`
 - Emulator package for FCEUX: `dist/emu/emu-coop-plus-2.0-beta4-fceux.zip`
 
-## What's new in v2.0 beta 4
+Release page:
 
-- MiSTer support in the bridge. The GUI now starts with a device choice,
-  supports MiSTer SSH setup, deploys the helper/core payload, stages source ROMs
-  under `/media/fat/games/NES/emu-coop-plus/`, and runs sessions through the
-  MiSTer helper endpoint.
-- FCEUX, EDN8, and MiSTer now interoperate through the relay; any two endpoints
-  can pair when both clients choose the same compatible Zelda 1 mode.
-- Added `bridge_cli mister-deploy` for MiSTer bring-up outside the GUI.
-- The custom MiSTer core is intentionally named `NES_emu-coop.rbf` so it does
-  not overwrite the stock upstream `NES.rbf`.
+<https://github.com/BogieSmalls/emu-coop-z1/releases/tag/v2.0.0-beta.4>
 
-## What's new in v2.0 beta 3
+## Quick Start
 
-- PRG1 (Rev A) Z1 ROM support. Both PRG0 and PRG1 vanilla ROMs are now supported by a single IPS — the title-screen rename has been shortened to `EMU-COOP` and repositioned into a region that is blank padding in both revisions.
-- Patch-time validator. The bridge now refuses to apply the patch if the input ROM has been modified at any of the regions the patch needs to write into, and reports the conflicting offsets. Vanilla and clean Z1R seeds apply as before.
+### FCEUX
 
-## What's new in v2.0 beta 2
+1. Download and extract the FCEUX zip.
+2. Launch FCEUX and load your Zelda 1 ROM.
+3. From the FCEUX Lua menu, load `coop.lua`.
+4. Choose Relay or Direct, enter the agreed session code, and select the same Zelda 1 mode as your partner.
 
-- ROM patch is now compatible with more Z1R seeds. Some Z1R flagsets fill bank 6 with seed-specific data, which conflicted with where the previous patch placed its USB protocol code; the patch is now relocated to safe ROM regions clean across every Z1R flagset audited.
-- Build/release tooling unified — single `build-all.ps1` at the repo root, per-endpoint output under `dist/<endpoint>/` for cleaner organization as more endpoints get added.
+### EverDrive Pro N8
 
-## What changed (v2.0 beta 1)
+1. Download and run the hardware bridge.
+2. Choose `EverDrive Pro N8`.
+3. Select your Zelda 1 ROM.
+4. Let the bridge patch and upload the ROM to the cart.
+5. Choose the same relay/session code and mode as your partner.
 
-First beta of the **emu-coop-plus** stack — a real NES playing co-op over the internet alongside FCEUX peers. Snapshot for community testing.
+### MiSTer
 
-- **EDN8 hardware bridge** — three Z1 modes (`tloz_basic`, `tloz_progress`, `tloz_all`) work end-to-end on real hardware. GUI auto-detects the EDN8's COM port, patches your ROM, and uploads it to the cart's SD card in one click.
-- **Reconnect machinery hardened.** Both Lua and bridge survive a partner disconnect/reconnect at any point; the relay correctly handles dropped peers and accepts fresh per-launch peer-ids.
-- **Bumped to 2.0 beta1**. The Lua compat-version checker treats `beta` as a variant — beta clients only pair with beta clients, protecting stable users from talking to a pre-release build.
+1. Download and run the hardware bridge.
+2. Choose `MiSTer`.
+3. Enter the MiSTer host/IP, username, and password.
+4. Let the bridge deploy the custom core, helper, and ROM.
+5. Launch the deployed `NES_emu-coop` core and staged ROM, then connect with the same relay/session code and mode as your partner.
 
-**Held back to v2.1:** the DIBS! competitive modes (`tloz_dibs_easy`, `tloz_dibs_medium`, `tloz_dibs_medium_entrances_on`) — they need a few bridge-side sync-engine extensions to ship cleanly on both FCEUX and EDN8 simultaneously, so we hold all three until the bridge can host them too.
+## Project Layout
 
-## What changed (v1.5)
+- `modes/`: original Lua mode files used by FCEUX-side emu-coop.
+- `bridge/`: Python hardware bridge, GUI, CLI, EDN8 support, MiSTer support, and bridge tests.
+- `relay/`: relay daemon for internet sessions.
+- `mister/`: vendored MiSTer NES core project and build notes for `NES_emu-coop.rbf`.
+- `dist/emu/`: FCEUX release packages.
+- `dist/hardware/`: hardware bridge release packages.
 
-- EDN8 hardware bridge end-to-end working — a real NES + Everdrive Pro N8 can play emu-coop with an FCEUX peer over the shared cloud relay.
-- Bridge polling uses ArrayRead over a small set of contiguous ranges, which is light enough on the cart that Z1's title→overworld transitions complete cleanly while the bridge is connected.
-- Bridge GUI auto-detects the EDN8 (USB Serial Device, VID 0483) and lists it first in the COM port dropdown.
+## Development
 
-## What changed (v1.4)
+Build all distributables:
 
-- New optional EDN8 hardware bridge (`bridge/`) — Python + CustomTkinter app that lets a real NES join emu-coop sessions as a peer alongside FCEUX clients.
-- Bundled as a single ~11 MB `bridge.exe` for Windows; macOS support is best-effort.
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-all.ps1
+```
 
-## What changed (v1.3)
+Run bridge tests:
 
-- IRC is no longer used. Replaced by Direct + Relay transports.
-- Connection drops auto-recover within ~30 seconds without restarting either emulator (heartbeat-driven detection + automatic reconnect with exponential backoff).
-- "Restarting after a crash?" still works for full save-and-reload recovery in case the auto-recovery doesn't catch all desyncs.
-- Wire format is now length-prefixed JSON frames (capped at 4 KiB), designed so a future PC-side bridge process can speak the same protocol — opening the door to non-Lua peers (Bizhawk via memory-poll bridge, real NES via Everdrive Pro N8 USB bridge, etc.).
-- The relay daemon is a separate, stateless asyncio TCP server in `relay/` — see `relay/README.md` for deployment.
+```powershell
+cd bridge
+uv run python -m pytest tests/ -v
+```
+
+Build the MiSTer core payload:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-mister-core.ps1
+```
+
+## Roadmap
+
+Planned work after the v2.0 stabilization push:
+
+- Add more gameplay modes, including DIBS-style competitive Zelda 1 modes once the bridge-side sync engine supports their extra write semantics cleanly.
+- Add additional emulator endpoints, with BizHawk and Mesen as likely next targets.
+- Continue reducing setup friction for hardware players.
 
 ## Author / License
 
