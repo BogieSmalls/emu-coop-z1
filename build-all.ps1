@@ -5,7 +5,8 @@
 # (Bizhawk, Mesen, etc.) without disturbing the shared layout:
 #
 #   dist/hardware/emu-coop-plus-<version>-hardware.exe
-#   dist/emu/emu-coop-plus-<version>-fceux.zip
+#   dist/emu/emu-coop-plus-<version>-fceux-win32.zip
+#   dist/emu/emu-coop-plus-<version>-fceux-win64.zip
 #   dist/<future-endpoint>/...
 #
 # Usage: powershell -ExecutionPolicy Bypass -File .\build-all.ps1

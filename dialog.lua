@@ -1,10 +1,31 @@
-require "iuplua"
+local iupOk, iupLoadError = pcall(require, "iuplua")
+local iupUnavailableShown = false
+
+local function showIupUnavailable()
+	if iupUnavailableShown then return end
+	iupUnavailableShown = true
+
+	local details = tostring(iupLoadError)
+	print("Cannot load FCEUX connection dialog DLL: " .. details)
+	if details:find("not a valid Win32 application", 1, true) then
+		print("This usually means 64-bit FCEUX is loading the 32-bit FCEUX package.")
+	else
+		print("This usually means the FCEUX package does not match your emulator bitness.")
+	end
+	print("Use 32-bit FCEUX with the fceux-win32 package, or use a fceux-win64 package built with 64-bit native DLLs.")
+	errorMessage("Dialog DLL unavailable; use a FCEUX package matching your emulator bitness.")
+end
 
 -- Bizarre kludge: For reasons I do not understand at all, radio buttons do not work in FCEUX. Switch to menus there only
 local optionLetter = "o"
 if FCEU then optionLetter = "l" end
 
 function connectionDialog()
+	if not iupOk then
+		showIupUnavailable()
+		return nil
+	end
+
 	local res, transport, host_addr, port, code, isHost, forceSend = iup.GetParam(
 	    "Connection settings", nil,
 	    "Transport: %" .. optionLetter .. "|Direct (LAN/Tailscale)|Relay (via OCI server)|\n" ..
@@ -30,6 +51,11 @@ function connectionDialog()
 end
 
 function selectDialog(specs, reason)
+	if not iupOk then
+		showIupUnavailable()
+		return nil
+	end
+
 	local names = ""
 	for i, v in ipairs(specs) do
 		names = names .. v.name .. "|"
@@ -47,5 +73,10 @@ function selectDialog(specs, reason)
 end
 
 function refuseDialog(options)
+	if not iupOk then
+		showIupUnavailable()
+		return
+	end
+
 	iup.Message("Cannot run", "No ROM is running.")
 end
