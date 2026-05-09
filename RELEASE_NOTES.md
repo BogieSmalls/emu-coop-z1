@@ -1,6 +1,6 @@
 # emu-coop-plus v2.0 beta 4 - release notes
 
-Fourth community-testing build of the emu-coop-plus bridge. Beta4 adds MiSTer hardware support alongside the EDN8 flow, with the bridge able to deploy the MiSTer helper/core payload and run two-way sync against FCEUX. This is a pre-release; expect rough edges around reconnect timing and rare error paths. Stable v2.0 follows after community testing.
+Fourth community-testing build of the emu-coop-plus bridge. Beta4 adds MiSTer hardware support alongside the EDN8 flow, with the bridge able to deploy the MiSTer helper/core payload and join the same relay/session workflow as FCEUX and EDN8. This is a pre-release; expect rough edges around reconnect timing and rare error paths. Stable v2.0 follows after community testing.
 
 ## Which file do I download?
 
@@ -9,12 +9,12 @@ Fourth community-testing build of the emu-coop-plus bridge. Beta4 adds MiSTer ha
 | **Hardware bridge: EDN8 or MiSTer** | `emu-coop-plus-2.0-beta4-hardware.exe` | ~19 MB |
 | **FCEUX or another Lua-compatible emulator** | `emu-coop-plus-2.0-beta4-fceux.zip` | ~few hundred KB |
 
-You can play EDN8 or MiSTer against FCEUX. Both ends use the same shared cloud relay and pair by an agreed-on session code.
+Any two endpoints can be paired together: FCEUX, EDN8, or MiSTer. FCEUX <-> FCEUX, FCEUX <-> EDN8, FCEUX <-> MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, and MiSTer <-> MiSTer all use the same shared cloud relay and pair by an agreed-on session code.
 
 ## What's new in v2.0 beta 4
 
 - **MiSTer hardware bridge support.** The bridge now has a device choice screen, MiSTer SSH setup, ROM staging under `/media/fat/games/NES/emu-coop-plus/`, and helper/core deployment.
-- **Two-way MiSTer sync.** The beta4 MiSTer path uses the bundled `NES_emu-coop.rbf` core plus `mister-helper.py` to read/write game memory through the same sync engine used by FCEUX and EDN8.
+- **Two-way MiSTer sync.** The beta4 MiSTer path uses the bundled `NES_emu-coop.rbf` core plus `mister-helper.py` to read/write game memory through the same sync engine and relay protocol used by FCEUX and EDN8.
 - **Generic release layout.** Emulator builds now land in `dist/emu/` and the bridge app lands in `dist/hardware/`.
 
 ## What's new in v2.0 beta 3
@@ -31,12 +31,12 @@ You can play EDN8 or MiSTer against FCEUX. Both ends use the same shared cloud r
 
 ### Hardware bridge
 
-A standalone Windows app that lets hardware endpoints play emu-coop alongside FCEUX peers. EDN8 and MiSTer are supported in beta4. Works with vanilla Z1, Z1R seeds, or any Z1-derived ROM.
+A standalone Windows app that lets hardware endpoints play emu-coop through the shared relay. EDN8 and MiSTer are supported in beta4, and either can pair with FCEUX or another hardware bridge endpoint. Works with vanilla Z1, Z1R seeds, or any Z1-derived ROM.
 
 - Choose EDN8 or MiSTer from the first screen.
 - EDN8 flow patches the ROM and uploads it to `sd:\emu-coop-plus\`.
 - MiSTer flow deploys `NES_emu-coop.rbf` and `mister-helper.py` over SSH/SCP, then stages ROMs under `/media/fat/games/NES/emu-coop-plus/`.
-- Talks to the same OCI relay as FCEUX peers and pairs by session code.
+- Talks to the same OCI relay as FCEUX and pairs by session code, so endpoint combinations are interchangeable as long as both clients choose the same mode.
 - Auto-reconnects on network drops on both sides.
 
 ### Three Z1 modes ported to the bridge
