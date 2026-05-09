@@ -155,6 +155,39 @@ def test_sync_session_keeps_pipe_alive_when_endpoint_poll_times_out():
     assert sink.logs == [("ERROR", "Endpoint read failed: timed out")]
 
 
+def test_sync_session_skips_implausible_endpoint_snapshot():
+    class BadSnapshotEndpoint(DictMemoryEndpoint):
+        def read_ranges(self, ranges, timeout_ms=300):
+            if ranges == [(tloz_all.RUNNING_ADDR, 1)]:
+                return {tloz_all.RUNNING_ADDR: 0x05}
+            return {
+                tloz_all.RUNNING_ADDR: 0x05,
+                0x065A: 0xFF,
+                0x0661: 0xFF,
+                0x066A: 0xFF,
+            }
+
+    pipe = FakePipe()
+    sink = FakeSink()
+    session = SyncSession(
+        endpoint=BadSnapshotEndpoint({}),
+        pipe=pipe,
+        mode=tloz_all,
+        sink=sink,
+    )
+
+    session.tick_once()
+
+    assert pipe.sent == [{"op": "hello", "guid": tloz_all.GUID, "version": "0.1.0"}]
+    assert sink.messages == []
+    assert sink.logs == [
+        (
+            "WARNING",
+            "Ignoring implausible endpoint snapshot: 0x065A Bow value 255 exceeds max 1",
+        )
+    ]
+
+
 def test_sync_session_validates_partner_mode_hello():
     session = SyncSession(
         endpoint=DictMemoryEndpoint({}),

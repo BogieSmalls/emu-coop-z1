@@ -170,6 +170,15 @@ class SessionWorker:
                             self._emit("log", text=f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
                             full_snapshot = None
                     if full_snapshot is not None:
+                        invalid_reason = engine.implausible_snapshot_reason(full_snapshot)
+                        if invalid_reason:
+                            self._emit(
+                                "log",
+                                text=f"Ignoring implausible endpoint snapshot: {invalid_reason}",
+                                level="WARNING",
+                            )
+                            full_snapshot = None
+                    if full_snapshot is not None:
                         running = engine.is_game_running(full_snapshot)
                         self._emit("cart_game", running=running)
                         if running:

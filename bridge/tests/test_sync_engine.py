@@ -123,3 +123,11 @@ def test_sync_engine_resync_clears_cache():
     engine.resync()
     assert engine.did_cache is False
     assert engine.force_send is True
+
+
+def test_sync_engine_rejects_impossible_high_item_snapshot():
+    engine, _endpoint = make_engine()
+
+    reason = engine.implausible_snapshot_reason({0x0012: 0x05, 0x065A: 0xFF})
+
+    assert reason == "0x065A Bow value 255 exceeds max 1"

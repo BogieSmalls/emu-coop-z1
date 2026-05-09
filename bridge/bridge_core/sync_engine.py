@@ -111,9 +111,24 @@ class SyncEngine:
     def is_game_running(self, snapshot: dict[int, int]) -> bool:
         return self.mode.is_running(snapshot)
 
+    def implausible_snapshot_reason(self, snapshot: dict[int, int]) -> str | None:
+        for addr, record in self.mode.SYNC.items():
+            if addr not in snapshot:
+                continue
+            max_value = self._max_plausible_value(record)
+            if max_value is None:
+                continue
+            value = snapshot[addr]
+            if value < 0 or value > max_value:
+                label = self._record_label(record)
+                return f"0x{addr:04X} {label} value {value} exceeds max {max_value}"
+        return None
+
     def check_first_running(self, snapshot: dict[int, int]) -> list[tuple[int, int]]:
         """Populate cache on the first running tick. If force_send is True,
         return a list of (addr, value) pairs to broadcast."""
+        if self.implausible_snapshot_reason(snapshot):
+            return []
         if self.did_cache:
             return []
         to_send: list[tuple[int, int]] = []
@@ -130,6 +145,8 @@ class SyncEngine:
         """For each watched address that changed since last poll, run
         record_changed (sending side). Returns list of (addr, send_value, message)
         for changes that should be transmitted."""
+        if self.implausible_snapshot_reason(snapshot):
+            return []
         out: list[tuple[int, int, str | None]] = []
         for addr, record in self.mode.SYNC.items():
             cur = snapshot.get(addr, 0)
@@ -221,3 +238,21 @@ class SyncEngine:
             if 0 <= idx < len(record["name_map"]):
                 return f"You got {record['name_map'][idx]}"
         return None
+
+    @staticmethod
+    def _max_plausible_value(record: dict) -> int | None:
+        if record.get("kind") != "high":
+            return None
+        if "name_map" in record:
+            return len(record["name_map"])
+        if "name" in record:
+            return 1
+        return None
+
+    @staticmethod
+    def _record_label(record: dict) -> str:
+        if "name" in record:
+            return record["name"]
+        if "name_map" in record:
+            return "/".join(record["name_map"])
+        return str(record.get("kind", "record"))

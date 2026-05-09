@@ -334,6 +334,14 @@ def cmd_run(args: argparse.Namespace) -> int:
                         sink.log(f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
                         full_snapshot = None
                 if full_snapshot is not None:
+                    invalid_reason = engine.implausible_snapshot_reason(full_snapshot)
+                    if invalid_reason:
+                        sink.log(
+                            f"Ignoring implausible endpoint snapshot: {invalid_reason}",
+                            level="WARNING",
+                        )
+                        full_snapshot = None
+                if full_snapshot is not None:
                     if engine.is_game_running(full_snapshot):
                         if not engine.did_cache:
                             to_send = engine.check_first_running(full_snapshot)

@@ -64,6 +64,13 @@ class ReadOnlySyncSession:
             return
         if snapshot is None:
             return
+        invalid_reason = self.engine.implausible_snapshot_reason(snapshot)
+        if invalid_reason:
+            self.sink.log(
+                f"Ignoring implausible endpoint snapshot: {invalid_reason}",
+                level="WARNING",
+            )
+            return
         if self.engine.is_game_running(snapshot):
             if not self.engine.did_cache:
                 for addr, value in self.engine.check_first_running(snapshot):
