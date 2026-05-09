@@ -1,4 +1,5 @@
 from bridge_core.memory_endpoint import DictMemoryEndpoint
+from bridge_core import __version__
 from bridge_core.modes import tloz_all
 from bridge_core.readonly_session import ReadOnlySyncSession
 
@@ -52,7 +53,7 @@ def test_readonly_session_sends_app_hello_once():
     session.tick_once()
     session.tick_once()
 
-    assert pipe.sent == [{"op": "hello", "guid": tloz_all.GUID, "version": "0.1.0"}]
+    assert pipe.sent == [{"op": "hello", "guid": tloz_all.GUID, "version": __version__}]
 
 
 def test_readonly_session_sends_tloz_all_changes_outward():

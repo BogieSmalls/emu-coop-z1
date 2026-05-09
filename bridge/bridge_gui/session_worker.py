@@ -15,6 +15,7 @@ from typing import Any
 
 import serial
 
+from bridge_core import __version__
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint
@@ -145,7 +146,7 @@ class SessionWorker:
                     last_state = pipe.state
 
                 if pipe.state == "ESTABLISHED" and not app_hello_sent:
-                    pipe.send_data({"op": "hello", "guid": mode.GUID, "version": "0.1.0"})
+                    pipe.send_data({"op": "hello", "guid": mode.GUID, "version": __version__})
                     app_hello_sent = True
                     self._emit("net_partner", paired=True)
 
@@ -221,7 +222,10 @@ class SessionWorker:
             if body.get("guid") != engine.mode.GUID:
                 self._emit("message", text=f"Partner has incompatible mode (guid mismatch)")
                 return
-            self._emit("log", text=f"Partner app hello OK (guid={body['guid']})")
+            self._emit(
+                "log",
+                text=f"Partner app hello OK (guid={body['guid']}, version={body.get('version')})",
+            )
             return
         for msg in engine.handle_table(body):
             self._emit("message", text=msg)

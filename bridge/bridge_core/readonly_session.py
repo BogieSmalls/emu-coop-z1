@@ -4,6 +4,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from bridge_core import __version__
 from bridge_core.memory_endpoint import MemoryEndpoint
 from bridge_core.status_sink import StatusSink
 from bridge_core.sync_engine import SyncEngine
@@ -18,7 +19,7 @@ class ReadOnlySyncSession:
         pipe: Any,
         mode: Any,
         sink: StatusSink,
-        version: str = "0.1.0",
+        version: str = __version__,
     ) -> None:
         self.endpoint = endpoint
         self.pipe = pipe

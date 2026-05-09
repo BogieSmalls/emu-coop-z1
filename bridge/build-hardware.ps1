@@ -12,7 +12,7 @@ Push-Location $PSScriptRoot
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 
-# Read the release version from version.lua; format e.g. "2.0 beta4" -> "2.0-beta4"
+# Read the release version from version.lua; format e.g. "2.0 beta5" -> "2.0-beta5"
 $versionLua = Join-Path $repoRoot "version.lua"
 $versionLine = Select-String -Path $versionLua -Pattern '^\s*release\s*=\s*"([^"]+)"' -List
 if (-not $versionLine) {

@@ -27,7 +27,7 @@ from bridge_gui.device_flow import (
 EDN8_TARGET_DIR = "sd:\\emu-coop-plus\\"
 
 
-class ROMSetupScreen(ctk.CTkFrame):
+class ROMSetupScreen(ctk.CTkScrollableFrame):
     def __init__(self, master, controller) -> None:
         super().__init__(master)
         self.controller = controller

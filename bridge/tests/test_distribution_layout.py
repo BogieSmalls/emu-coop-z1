@@ -20,7 +20,7 @@ def test_hardware_builder_writes_to_hardware_dist_with_hardware_artifact_name():
     assert "dist\\edn8" not in script
 
 
-def test_build_all_uses_generic_beta4_distribution_targets():
+def test_build_all_uses_generic_distribution_targets():
     script = (REPO_ROOT / "build-all.ps1").read_text(encoding="utf-8")
 
     assert "dist/hardware/emu-coop-plus-<version>-hardware.exe" in script

@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import customtkinter as ctk
 
+WINDOW_GEOMETRY = "760x720"
+WINDOW_MIN_SIZE = (700, 560)
+
 
 class BridgeApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
         self.title("emu-coop bridge")
-        self.geometry("700x500")
-        self.minsize(600, 400)
+        self.geometry(WINDOW_GEOMETRY)
+        self.minsize(*WINDOW_MIN_SIZE)
 
         self._screens: dict[str, ctk.CTkFrame] = {}
         self._current_screen: ctk.CTkFrame | None = None

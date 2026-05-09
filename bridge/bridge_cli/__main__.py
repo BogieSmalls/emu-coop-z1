@@ -23,6 +23,7 @@ from pathlib import Path
 
 import serial
 
+from bridge_core import __version__
 from bridge_core import ips
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
@@ -309,7 +310,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 last_state = pipe.state
 
             if pipe.state == "ESTABLISHED" and not app_hello_sent:
-                pipe.send_data({"op": "hello", "guid": mode.GUID, "version": "0.1.0"})
+                pipe.send_data({"op": "hello", "guid": mode.GUID, "version": __version__})
                 app_hello_sent = True
 
             if pipe.state == "ESTABLISHED":

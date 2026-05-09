@@ -59,14 +59,14 @@ For bridge details, see [bridge/README.md](bridge/README.md).
 
 ## Downloads
 
-Current beta4 release:
+Current beta5 release:
 
-- Hardware bridge for EDN8 and MiSTer: `dist/hardware/emu-coop-plus-2.0-beta4-hardware.exe`
-- Emulator package for FCEUX: `dist/emu/emu-coop-plus-2.0-beta4-fceux.zip`
+- Hardware bridge for EDN8 and MiSTer: `dist/hardware/emu-coop-plus-2.0-beta5-hardware.exe`
+- Emulator package for FCEUX: `dist/emu/emu-coop-plus-2.0-beta5-fceux.zip`
 
 Release page:
 
-<https://github.com/BogieSmalls/emu-coop-z1/releases/tag/v2.0.0-beta.4>
+<https://github.com/BogieSmalls/emu-coop-z1/releases/tag/v2.0.0-beta.5>
 
 ## Quick Start
 

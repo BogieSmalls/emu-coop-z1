@@ -18,7 +18,7 @@ MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, or MiSTer <-> MiSTer.
 
 ## Quick start
 
-1. **Download `emu-coop-plus-2.0-beta4-hardware.exe`** (single file, ~19 MB).
+1. **Download `emu-coop-plus-2.0-beta5-hardware.exe`** (single file, ~19 MB).
 2. **Run the .exe** and choose `EverDrive Pro N8` or `MiSTer`.
 3. For **EDN8**, plug in your cart and follow the patch/upload flow:
    - Pick your Z1 ROM (vanilla or Z1R seed; both work)
