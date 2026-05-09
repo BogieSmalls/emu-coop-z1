@@ -115,13 +115,21 @@ class SyncEngine:
         for addr, record in self.mode.SYNC.items():
             if addr not in snapshot:
                 continue
-            max_value = self._max_plausible_value(record)
-            if max_value is None:
-                continue
-            value = snapshot[addr]
-            if value < 0 or value > max_value:
-                label = self._record_label(record)
-                return f"0x{addr:04X} {label} value {value} exceeds max {max_value}"
+            reason = self.implausible_change_reason(addr, snapshot[addr])
+            if reason:
+                return reason
+        return None
+
+    def implausible_change_reason(self, addr: int, value: int) -> str | None:
+        record = self.mode.SYNC.get(addr)
+        if record is None:
+            return None
+        max_value = self._max_plausible_value(record)
+        if max_value is None:
+            return None
+        if value < 0 or value > max_value:
+            label = self._record_label(record)
+            return f"0x{addr:04X} {label} value {value} exceeds max {max_value}"
         return None
 
     def check_first_running(self, snapshot: dict[int, int]) -> list[tuple[int, int]]:
@@ -168,6 +176,9 @@ class SyncEngine:
         record = self.mode.SYNC.get(addr)
         if record is None:
             return [f"Partner changed unknown address 0x{addr:04X}"]
+        invalid_reason = self.implausible_change_reason(addr, t["value"])
+        if invalid_reason:
+            return [f"Ignoring implausible partner change: {invalid_reason}"]
         if queue_if_not_running:
             try:
                 running = read_running_byte(self.endpoint, self.mode)

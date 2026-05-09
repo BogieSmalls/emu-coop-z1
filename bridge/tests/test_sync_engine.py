@@ -109,6 +109,18 @@ def test_sync_engine_handle_table_writes_to_ram():
     assert endpoint.read_byte(0x0657) == 1
 
 
+def test_sync_engine_handle_table_rejects_implausible_partner_item_value():
+    engine, endpoint = make_engine({0x0012: 0x05, 0x065B: 0})
+    engine.cache[0x065B] = 0
+
+    messages = engine.handle_table({"addr": 0x065B, "value": 0xFF})
+
+    assert endpoint.read_byte(0x065B) == 0
+    assert messages == [
+        "Ignoring implausible partner change: 0x065B Blue Candle/Red Candle value 255 exceeds max 2"
+    ]
+
+
 def test_sync_engine_handle_table_emits_message():
     engine, _endpoint = make_engine({0x0012: 0x05, 0x0657: 0})
     engine.cache[0x0657] = 0
@@ -131,3 +143,11 @@ def test_sync_engine_rejects_impossible_high_item_snapshot():
     reason = engine.implausible_snapshot_reason({0x0012: 0x05, 0x065A: 0xFF})
 
     assert reason == "0x065A Bow value 255 exceeds max 1"
+
+
+def test_sync_engine_reports_impossible_single_high_item_change():
+    engine, _endpoint = make_engine()
+
+    reason = engine.implausible_change_reason(0x065B, 0xFF)
+
+    assert reason == "0x065B Blue Candle/Red Candle value 255 exceeds max 2"
