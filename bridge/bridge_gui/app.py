@@ -1,16 +1,26 @@
 """CustomTkinter app shell with screen navigation."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import customtkinter as ctk
 
 WINDOW_GEOMETRY = "760x720"
 WINDOW_MIN_SIZE = (700, 560)
+APP_ICON = Path("assets/ganon_blue.ico")
+
+
+def asset_path(relative_path: Path) -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+    return base / relative_path
 
 
 class BridgeApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
         self.title("emu-coop bridge")
+        self._set_window_icon()
         self.geometry(WINDOW_GEOMETRY)
         self.minsize(*WINDOW_MIN_SIZE)
 
@@ -23,6 +33,12 @@ class BridgeApp(ctk.CTk):
 
         self._register_screens()
         self.show_screen("device_select")
+
+    def _set_window_icon(self) -> None:
+        try:
+            self.iconbitmap(default=str(asset_path(APP_ICON)))
+        except Exception:
+            pass
 
     def _register_screens(self) -> None:
         from bridge_gui.device_select_screen import DeviceSelectScreen

@@ -28,6 +28,14 @@ def test_pyinstaller_spec_bundles_mister_core_payload():
     assert "bridge_core/mister_payload/NES_emu-coop.rbf" in spec
 
 
+def test_pyinstaller_spec_embeds_hardware_icon():
+    spec = (BRIDGE_DIR / "bridge.spec").read_text(encoding="utf-8")
+
+    assert (BRIDGE_DIR / "assets" / "ganon_blue.ico").is_file()
+    assert "assets/ganon_blue.ico" in spec
+    assert "icon='assets/ganon_blue.ico'" in spec
+
+
 def test_payload_helper_script_is_stdlib_only():
     helper = PAYLOAD_DIR / "mister-helper.py"
     tree = ast.parse(helper.read_text(encoding="utf-8"))

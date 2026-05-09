@@ -11,6 +11,14 @@ def test_gui_uses_taller_beta5_window_defaults():
     assert "WINDOW_MIN_SIZE = (700, 560)" in source
 
 
+def test_gui_uses_ganon_icon_asset():
+    source = (REPO_ROOT / "bridge" / "bridge_gui" / "app.py").read_text(encoding="utf-8")
+
+    assert (REPO_ROOT / "bridge" / "assets" / "ganon_blue.ico").is_file()
+    assert 'APP_ICON = Path("assets/ganon_blue.ico")' in source
+    assert "self._set_window_icon()" in source
+
+
 def test_rom_setup_screen_is_scrollable_for_mister_deploy_flow():
     source = (REPO_ROOT / "bridge" / "bridge_gui" / "setup_screen.py").read_text(encoding="utf-8")
 

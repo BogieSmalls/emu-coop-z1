@@ -10,6 +10,7 @@ a = Analysis(
     pathex=[str(Path('.').resolve())],
     binaries=[],
     datas=[
+        ('assets/ganon_blue.ico', 'assets'),
         ('bridge_core/patches/zelda_emu_coop_plus.ips', 'bridge_core/patches'),
         ('bridge_core/patches/zelda_emu_coop_plus.expected.json', 'bridge_core/patches'),
         ('bridge_core/mister_payload/manifest.json', 'bridge_core/mister_payload'),
@@ -55,4 +56,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/ganon_blue.ico',
 )
