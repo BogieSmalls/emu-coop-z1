@@ -88,6 +88,9 @@ function recordChanged(record, value, previousValue, receiving)
 		end
 	elseif record.kind == "delta" then
 		if not receiving then
+			if record.ignoreZeroBoundary and (AND(mask, value) == 0 or AND(mask, previousValue) == 0) then
+				return false, unalteredValue
+			end
 			allow = maskedValue ~= previousValue
 			value = AND(mask, value) - AND(mask, previousValue)
 		else
@@ -157,9 +160,11 @@ function GameDriver:checkFirstRunning() -- Do first-frame bootup-- only call if 
 
 			if self.forceSend then -- Restoring after a crash send all values regardless of importance
 				if value ~= 0 then -- FIXME: This is adequate for all current specs but maybe it will not be in future?!
-					if driverDebug then print("Sending address " .. toxstring(k) .. " at startup") end
+					if v.kind ~= "delta" then
+						if driverDebug then print("Sending address " .. toxstring(k) .. " at startup") end
 
-					self:sendTable {addr=k, value=value}
+						self:sendTable {addr=k, value=value}
+					end
 				end
 			end
 		end
@@ -225,13 +230,14 @@ function GameDriver:caughtWrite(addr, arg2, record, size)
 		local allow = true
 		local value = memoryRead(addr, size)
 		local sendValue = value
+		local previousValue = cache[addr]
 
 		if record.writeTrigger then
 			record.writeTrigger(value, previousValue, false)
 		end
 
 		if cache[addr] then -- It should be impossible for this to be false
-			allow, sendValue = recordChanged(record, value, cache[addr], false)
+			allow, sendValue = recordChanged(record, value, previousValue, false)
 		end
 
 		if allow then
@@ -242,6 +248,15 @@ function GameDriver:caughtWrite(addr, arg2, record, size)
 			cache[addr] = value
 
 			self:sendTable {addr=addr, value=sendValue}
+		elseif record.kind == "delta" and record.ignoreZeroBoundary then
+			local mask = 0xff
+			if record.size == 2 then mask = 0xffff
+			elseif record.size == 4 then mask = 0xffffffff
+			end
+			if record.mask then mask = record.mask end
+			if previousValue and (AND(mask, value) == 0 or AND(mask, previousValue) == 0) then
+				cache[addr] = value
+			end
 		end
 	else
 		if driverDebug then print("Ignored memory write because the game is not running") end

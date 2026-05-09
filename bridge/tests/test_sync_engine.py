@@ -30,6 +30,15 @@ def test_delta_kind_send_when_changed():
     assert value == 8  # delta = 8 - 0
 
 
+def test_delta_kind_can_ignore_zero_boundary_startup_transitions():
+    record = {"kind": "delta", "size": 1, "ignoreZeroBoundary": True}
+
+    assert record_changed(record, value=0, previous_value=8, receiving=False) == (False, 0)
+    assert record_changed(record, value=8, previous_value=0, receiving=False) == (False, 8)
+    assert record_changed(record, value=16, previous_value=8, receiving=False) == (True, 8)
+    assert record_changed(record, value=8, previous_value=16, receiving=False) == (True, -8)
+
+
 def test_delta_kind_receive_applies_delta():
     record = {"kind": "delta", "size": 1}
     allow, value = record_changed(record, value=8, previous_value=4, receiving=True)
@@ -214,6 +223,31 @@ def test_sync_engine_resync_clears_cache():
     engine.resync()
     assert engine.did_cache is False
     assert engine.force_send is True
+
+
+def test_sync_engine_force_send_skips_delta_records():
+    engine, _endpoint = make_engine()
+    engine.force_send = True
+
+    to_send = engine.check_first_running({0x0012: 0x05, 0x0657: 1, 0x067C: 8})
+
+    assert (0x0657, 1) in to_send
+    assert not any(addr == 0x067C for addr, _value in to_send)
+
+
+def test_sync_engine_suppressed_zero_boundary_delta_updates_cache():
+    engine, _endpoint = make_engine()
+    engine.cache[0x067C] = 8
+
+    assert engine.diff({0x0012: 0x05, 0x067C: 0}) == []
+    assert engine.cache[0x067C] == 0
+
+    assert engine.diff({0x0012: 0x05, 0x067C: 8}) == []
+    assert engine.cache[0x067C] == 8
+
+    assert engine.diff({0x0012: 0x05, 0x067C: 16}) == [
+        (0x067C, 8, None)
+    ]
 
 
 def test_sync_engine_rejects_impossible_high_item_snapshot():

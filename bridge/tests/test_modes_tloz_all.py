@@ -49,6 +49,7 @@ def test_heart_record_kind_is_callable():
 def test_bomb_record_has_delta_kind():
     record = tloz_all.SYNC[0x067C]
     assert record["kind"] == "delta"
+    assert record["ignoreZeroBoundary"] is True
 
 
 def test_sync_includes_progress_inherited_addresses():

@@ -74,7 +74,7 @@ spec.sync[0x066F] = {
 
  -- bomb count, but we need to adjust how many bombs you actually have after
  -- syncing (max out bombs on increase, reduce bombs on decrease)
-spec.sync[0x067C] = {kind="delta", deltaMin=1, deltaMax=255,
+spec.sync[0x067C] = {kind="delta", deltaMin=1, deltaMax=255, ignoreZeroBoundary=true,
 	receiveTrigger=function(value, previousValue)
 		if value > previousValue then
 			-- we got an increase in bombs, set bomb count to the same thing and print out the bomb upgrade count

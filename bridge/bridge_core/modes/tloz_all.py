@@ -146,6 +146,7 @@ SYNC: dict[int, dict] = {
         "kind": "delta",
         "deltaMin": 1,
         "deltaMax": 255,
+        "ignoreZeroBoundary": True,
         "receive_trigger": _bomb_receive_trigger,
     },
 }

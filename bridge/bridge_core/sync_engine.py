@@ -71,6 +71,10 @@ def record_changed(
             value = masked_value
     elif kind == "delta":
         if not receiving:
+            if record.get("ignoreZeroBoundary") and (
+                (mask & value) == 0 or (mask & previous_value) == 0
+            ):
+                return False, unaltered
             allow = masked_value != previous_value
             value = (mask & value) - (mask & previous_value)
         else:
@@ -159,7 +163,11 @@ class SyncEngine:
             value = snapshot.get(addr, 0)
             if addr not in self.cache:
                 self.cache[addr] = value
-            if self.force_send and value != 0:
+            if (
+                self.force_send
+                and value != 0
+                and self.mode.SYNC[addr].get("kind") != "delta"
+            ):
                 to_send.append((addr, value))
         self.did_cache = True
         return to_send
@@ -181,6 +189,8 @@ class SyncEngine:
                 self.cache[addr] = cur
                 msg = self._build_send_message(record, cur, prev)
                 out.append((addr, send_value, msg))
+            elif self._should_cache_suppressed_delta(record, cur, prev):
+                self.cache[addr] = cur
         return out
 
     def handle_table(
@@ -343,3 +353,16 @@ class SyncEngine:
     @staticmethod
     def _should_gate_map_write(addr: int, record: dict) -> bool:
         return 0x067F <= addr <= 0x07FE and record.get("kind") == "bitOr"
+
+    @staticmethod
+    def _should_cache_suppressed_delta(
+        record: dict[str, Any],
+        value: int,
+        previous_value: int,
+    ) -> bool:
+        if record.get("kind") != "delta" or not record.get("ignoreZeroBoundary"):
+            return False
+        mask = SyncEngine._record_size_mask(record)
+        if "mask" in record:
+            mask = record["mask"]
+        return (mask & value) == 0 or (mask & previous_value) == 0
