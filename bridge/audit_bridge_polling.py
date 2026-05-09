@@ -5,7 +5,8 @@ checksum-correct CC framing rather than the older audit helpers.
 
 Examples:
     uv run python audit_bridge_polling.py --port COM5 --pattern tloz_all --duration 300
-    uv run python audit_bridge_polling.py --port COM5 --pattern inventory --hz 10 --duration 120
+    uv run python audit_bridge_polling.py --port COM5 --pattern inventory --method array --hz 10 --duration 120
+    uv run python audit_bridge_polling.py --port COM5 --pattern inventory --method addrs --hz 10 --duration 120
     uv run python audit_bridge_polling.py --port COM5 --pattern map --hz 2 --stop-on-anomaly
 """
 from __future__ import annotations
@@ -37,6 +38,13 @@ def ranges_for_pattern(pattern: str, *, addr: int | None = None, length: int | N
     raise ValueError(f"unknown pattern: {pattern}")
 
 
+def addresses_for_ranges(ranges: Iterable[Range]) -> list[int]:
+    addresses: list[int] = []
+    for base, length in ranges:
+        addresses.extend(range(base, base + length))
+    return addresses
+
+
 def _range_values(snapshot: dict[int, int], base: int, length: int) -> list[int]:
     return [snapshot.get(base + offset, 0) for offset in range(length)]
 
@@ -53,11 +61,8 @@ def analyze_snapshot(snapshot: dict[int, int], ranges: Iterable[Range]) -> list[
             continue
         values = _range_values(snapshot, base, length)
         ff_count = sum(1 for value in values if value == 0xFF)
-        zero_count = sum(1 for value in values if value == 0x00)
         if ff_count / length >= 0.75:
             anomalies.append(f"0x{base:04X}+{length} is {ff_count * 100 // length}% FF")
-        elif zero_count / length >= 0.95:
-            anomalies.append(f"0x{base:04X}+{length} is {zero_count * 100 // length}% 00")
     return anomalies
 
 
@@ -71,12 +76,19 @@ def _read_ranges_with_timings(
     client: CCClient,
     ranges: list[Range],
     timeout_ms: int,
+    *,
+    method: str = "array",
 ) -> tuple[dict[int, int], list[tuple[int, int, float | None]]]:
     snapshot: dict[int, int] = {}
     timings: list[tuple[int, int, float | None]] = []
     for base, length in ranges:
         started = time.perf_counter()
-        data = client.read_array(base, length, timeout_ms=timeout_ms)
+        if method == "array":
+            data = client.read_array(base, length, timeout_ms=timeout_ms)
+        elif method == "addrs":
+            data = client.read_addrs(addresses_for_ranges([(base, length)]), timeout_ms=timeout_ms)
+        else:
+            raise ValueError(f"unknown read method: {method}")
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         if data is None or len(data) != length:
             timings.append((base, length, None))
@@ -111,7 +123,10 @@ def run_audit(args: argparse.Namespace) -> int:
     consecutive_timeouts = 0
 
     print("# EDN8 bridge polling audit")
-    print(f"# pattern={args.pattern} hz={args.hz} duration={args.duration}s timeout_ms={args.timeout_ms}")
+    print(
+        f"# pattern={args.pattern} method={args.method} hz={args.hz} "
+        f"duration={args.duration}s timeout_ms={args.timeout_ms}"
+    )
     print("# ranges=" + " ".join(f"0x{base:04X}+{length}" for base, length in ranges))
     print("# Uses bridge_core.cc_client.CCClient checksum-correct framing.")
     print()
@@ -120,7 +135,7 @@ def run_audit(args: argparse.Namespace) -> int:
     while time.time() < deadline:
         tick += 1
         loop_start = time.time()
-        snapshot, timings = _read_ranges_with_timings(client, ranges, args.timeout_ms)
+        snapshot, timings = _read_ranges_with_timings(client, ranges, args.timeout_ms, method=args.method)
         total_reads += len(ranges)
         timeouts = sum(1 for _base, _length, elapsed_ms in timings if elapsed_ms is None)
         total_timeouts += timeouts
@@ -167,6 +182,7 @@ def main() -> int:
     )
     parser.add_argument("--addr", type=lambda value: int(value, 0))
     parser.add_argument("--length", type=lambda value: int(value, 0))
+    parser.add_argument("--method", choices=("array", "addrs"), default="array")
     parser.add_argument("--hz", type=float, default=10.0)
     parser.add_argument("--duration", type=float, default=120.0)
     parser.add_argument("--timeout-ms", type=int, default=300)

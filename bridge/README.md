@@ -128,10 +128,16 @@ run the bridge polling audit against a running CC-patched ROM:
 cd bridge
 uv run python audit_bridge_polling.py --port COM5 --pattern tloz_all --duration 300 --stop-on-anomaly
 uv run python audit_bridge_polling.py --port COM5 --pattern inventory --hz 10 --duration 120 --stop-on-anomaly
+uv run python audit_bridge_polling.py --port COM5 --pattern inventory --method array --verbose --duration 5
+uv run python audit_bridge_polling.py --port COM5 --pattern inventory --method addrs --verbose --duration 5
+uv run python audit_bridge_polling.py --port COM5 --pattern custom --addr 0x065B --length 1 --method array --verbose --duration 5
+uv run python audit_bridge_polling.py --port COM5 --pattern custom --addr 0x065B --length 1 --method addrs --verbose --duration 5
 uv run python audit_bridge_polling.py --port COM5 --pattern map --hz 2 --duration 120 --stop-on-anomaly
 uv run python audit_bridge_polling.py --port COM5 --pattern running --hz 10 --duration 120
 ```
 
 The audit uses the current checksum-correct `CCClient` framing and prints raw
-range bytes when it sees impossible item values or mostly-`FF` / mostly-`00`
-range reads.
+range bytes when it sees impossible item values or mostly-`FF` range reads.
+Use `--method array` to exercise CC Action `0x01` contiguous reads, and
+`--method addrs` to exercise CC Action `0x00` individual-address reads over
+the same ranges.
