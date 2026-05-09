@@ -111,10 +111,13 @@ class SyncEngine:
         endpoint: MemoryEndpoint,
         mode: Any,
         map_write_gate: MapWriteGate | None = None,
+        running_pause_threshold: int = 30,
     ) -> None:
         self.endpoint = endpoint
         self.mode = mode
         self.map_write_gate = map_write_gate
+        self.running_pause_threshold = running_pause_threshold
+        self._not_running_ticks = 0
         self.cache: dict[int, int] = {}
         self.did_cache = False
         self.force_send = False
@@ -136,15 +139,6 @@ class SyncEngine:
         record = self.mode.SYNC.get(addr)
         if record is None:
             return None
-        if record.get("kind") in {"bitOr", "bitAnd"} and "mask" in record:
-            size_mask = self._record_size_mask(record)
-            outside_mask = size_mask & ~int(record["mask"])
-            if value & outside_mask:
-                label = self._record_label(record)
-                return (
-                    f"0x{addr:04X} {label} value {value} "
-                    f"has bits outside mask 0x{int(record['mask']):X}"
-                )
         max_value = self._max_plausible_value(record)
         if max_value is None:
             return None
@@ -260,6 +254,19 @@ class SyncEngine:
                     messages.append(f"Partner got {record['name_map'][idx]}")
         return messages
 
+    def observe_running(self) -> None:
+        self._not_running_ticks = 0
+
+    def observe_not_running(self) -> bool:
+        """Return True only when a sustained non-running state should pause sync."""
+        self._not_running_ticks += 1
+        if self._not_running_ticks < self.running_pause_threshold:
+            return False
+        if self.did_cache:
+            self.did_cache = False
+            return True
+        return False
+
     def drain_map_write_gate(self, *, now: float | None = None) -> list[str]:
         if self.map_write_gate is None or not self.map_write_gate.is_due(now=now):
             return []
@@ -293,6 +300,7 @@ class SyncEngine:
         self.cache.clear()
         self.did_cache = False
         self.force_send = True
+        self._not_running_ticks = 0
 
     def _build_send_message(self, record: dict, cur: int, prev: int) -> str | None:
         """Local-side analog of handle_table's message construction (for the

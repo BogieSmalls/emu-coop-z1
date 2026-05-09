@@ -163,10 +163,9 @@ class SessionWorker:
                     if running_probe is None:
                         full_snapshot = None
                     elif not running_probe:
-                        self._emit("cart_game", running=False)
-                        if engine.did_cache:
+                        if engine.observe_not_running():
+                            self._emit("cart_game", running=False)
                             self._emit("log", text="Game stopped running; pausing sync")
-                            engine.did_cache = False
                         full_snapshot = None
                     else:
                         for msg in engine.drain_map_write_gate():
@@ -189,6 +188,7 @@ class SessionWorker:
                         running = engine.is_game_running(full_snapshot)
                         self._emit("cart_game", running=running)
                         if running:
+                            engine.observe_running()
                             if not engine.did_cache:
                                 to_send = engine.check_first_running(full_snapshot)
                                 for addr, value in to_send:
@@ -199,10 +199,9 @@ class SessionWorker:
                                 pipe.send_data({"addr": addr, "value": send_value})
                                 if msg:
                                     self._emit("message", text=msg)
-                        else:
-                            if engine.did_cache:
-                                self._emit("log", text="Game stopped running; pausing sync")
-                                engine.did_cache = False
+                        elif engine.observe_not_running():
+                            self._emit("cart_game", running=False)
+                            self._emit("log", text="Game stopped running; pausing sync")
 
                 elapsed = time.monotonic() - loop_start
                 sleep = self.POLL_PERIOD - elapsed

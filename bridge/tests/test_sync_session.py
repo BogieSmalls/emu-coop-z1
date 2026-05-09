@@ -82,6 +82,31 @@ def test_sync_session_skips_full_poll_when_running_probe_is_not_running():
     assert endpoint.read_ranges_calls == [[(tloz_all.RUNNING_ADDR, 1)]]
 
 
+def test_sync_session_transient_not_running_does_not_reset_diff_cache():
+    endpoint = DictMemoryEndpoint({0x0012: 0x05, 0x0668: 0x00})
+    pipe = FakePipe()
+    session = SyncSession(
+        endpoint=endpoint,
+        pipe=pipe,
+        mode=tloz_all,
+        sink=FakeSink(),
+        running_pause_threshold=3,
+    )
+
+    session.tick_once()
+    assert session.engine.did_cache is True
+
+    endpoint.memory[0x0012] = 0x00
+    session.tick_once()
+    assert session.engine.did_cache is True
+
+    endpoint.memory[0x0012] = 0x05
+    endpoint.memory[0x0668] = 0x80
+    session.tick_once()
+
+    assert {"addr": 0x0668, "value": 0x80} in pipe.sent
+
+
 def test_sync_session_applies_incoming_partner_writes():
     endpoint = DictMemoryEndpoint({0x0012: 0x05, 0x0657: 0x00})
     sink = FakeSink()

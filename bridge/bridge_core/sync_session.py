@@ -22,13 +22,19 @@ class SyncSession:
         sink: StatusSink,
         version: str = __version__,
         map_write_gate: MapWriteGate | None = None,
+        running_pause_threshold: int = 30,
     ) -> None:
         self.endpoint = endpoint
         self.pipe = pipe
         self.mode = mode
         self.sink = sink
         self.version = version
-        self.engine = SyncEngine(endpoint=endpoint, mode=mode, map_write_gate=map_write_gate)
+        self.engine = SyncEngine(
+            endpoint=endpoint,
+            mode=mode,
+            map_write_gate=map_write_gate,
+            running_pause_threshold=running_pause_threshold,
+        )
         self.app_hello_sent = False
         self.last_state: str | None = None
         self.pipe.on_data = self.on_data
@@ -56,9 +62,8 @@ class SyncSession:
         if running is None:
             return
         if not running:
-            if self.engine.did_cache:
+            if self.engine.observe_not_running():
                 self.sink.log("Game stopped running; pausing sync")
-                self.engine.did_cache = False
             return
         for message in self.engine.drain_map_write_gate():
             self.sink.message(message)
@@ -77,6 +82,7 @@ class SyncSession:
             )
             return
         if self.engine.is_game_running(snapshot):
+            self.engine.observe_running()
             if not self.engine.did_cache:
                 for addr, value in self.engine.check_first_running(snapshot):
                     self.pipe.send_data({"addr": addr, "value": value})
@@ -86,9 +92,8 @@ class SyncSession:
                 self.pipe.send_data({"addr": addr, "value": send_value})
                 if msg:
                     self.sink.message(msg)
-        elif self.engine.did_cache:
+        elif self.engine.observe_not_running():
             self.sink.log("Game stopped running; pausing sync")
-            self.engine.did_cache = False
 
     def on_data(self, body: dict) -> None:
         if body.get("op") == "hello":

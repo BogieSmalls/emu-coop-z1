@@ -324,9 +324,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                 if running_probe is None:
                     full_snapshot = None
                 elif not running_probe:
-                    if engine.did_cache:
+                    if engine.observe_not_running():
                         sink.log("Game stopped running; pausing sync")
-                        engine.did_cache = False
                     full_snapshot = None
                 else:
                     for msg in engine.drain_map_write_gate():
@@ -348,6 +347,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                         full_snapshot = None
                 if full_snapshot is not None:
                     if engine.is_game_running(full_snapshot):
+                        engine.observe_running()
                         if not engine.did_cache:
                             to_send = engine.check_first_running(full_snapshot)
                             for addr, value in to_send:
@@ -358,10 +358,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                             pipe.send_data({"addr": addr, "value": send_value})
                             if msg:
                                 sink.message(msg)
-                    else:
-                        if engine.did_cache:
-                            sink.log("Game stopped running; pausing sync")
-                            engine.did_cache = False
+                    elif engine.observe_not_running():
+                        sink.log("Game stopped running; pausing sync")
 
             elapsed = time.monotonic() - loop_start
             sleep = POLL_PERIOD - elapsed

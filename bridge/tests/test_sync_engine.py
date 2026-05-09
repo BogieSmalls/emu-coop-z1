@@ -232,17 +232,53 @@ def test_sync_engine_reports_impossible_single_high_item_change():
     assert reason == "0x065B Blue Candle/Red Candle value 255 exceeds max 2"
 
 
-def test_sync_engine_rejects_masked_overworld_map_garbage_change():
+def test_sync_engine_allows_masked_overworld_map_noise_change():
     engine, _endpoint = make_engine()
 
     reason = engine.implausible_change_reason(0x067F, 0x94)
 
-    assert reason == "0x067F bitOr value 148 has bits outside mask 0x90"
+    assert reason is None
 
 
-def test_sync_engine_rejects_masked_overworld_map_garbage_snapshot():
+def test_sync_engine_allows_masked_overworld_map_noise_snapshot():
     engine, _endpoint = make_engine()
 
     reason = engine.implausible_snapshot_reason({0x0012: 0x05, 0x067F: 0x94})
 
-    assert reason == "0x067F bitOr value 148 has bits outside mask 0x90"
+    assert reason is None
+
+
+def test_sync_engine_masked_overworld_noise_does_not_block_progress_diff():
+    engine, _endpoint = make_engine()
+    engine.cache[0x0668] = 0
+    engine.cache[0x06E5] = 0
+
+    changes = engine.diff({0x0012: 0x05, 0x0668: 0x80, 0x06E5: 0x01})
+
+    assert (0x0668, 0x80, None) in changes
+    assert not any(addr == 0x06E5 for addr, _value, _msg in changes)
+
+
+def test_sync_engine_debounces_transient_not_running_before_clearing_cache():
+    engine, _endpoint = make_engine()
+    engine.running_pause_threshold = 3
+    engine.did_cache = True
+
+    assert engine.observe_not_running() is False
+    assert engine.observe_not_running() is False
+    assert engine.did_cache is True
+
+    assert engine.observe_not_running() is True
+    assert engine.did_cache is False
+
+
+def test_sync_engine_running_state_resets_not_running_debounce():
+    engine, _endpoint = make_engine()
+    engine.running_pause_threshold = 3
+    engine.did_cache = True
+
+    assert engine.observe_not_running() is False
+    engine.observe_running()
+    assert engine.observe_not_running() is False
+    assert engine.observe_not_running() is False
+    assert engine.did_cache is True
