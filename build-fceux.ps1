@@ -30,7 +30,9 @@ $version = $rawVersion -replace '\s+', '-'   # "2.0 beta1" -> "2.0-beta1"
 
 $packageBaseName = "emu-coop-plus-$version-fceux"
 $endpointDist = Join-Path $PSScriptRoot "dist\emu"
+$stagingRoot = Join-Path $endpointDist ".staging"
 New-Item -ItemType Directory -Path $endpointDist -Force | Out-Null
+New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
 
 # Remove the older architecture-ambiguous artifact name so a rebuild does not
 # leave users with a stale zip that looks current.
@@ -40,6 +42,7 @@ if (Test-Path $legacyZipPath) { Remove-Item -Force $legacyZipPath }
 # Top-level files FCEUX users need
 $rootFiles = @(
     "coop.lua",
+    "coop_config.lua",
     "debug.lua",
     "dialog.lua",
     "driver.lua",
@@ -97,7 +100,7 @@ foreach ($target in $targets) {
     $arch = $target.arch
     $nativeRoot = $target.nativeRoot
     $packageName = "$packageBaseName-$arch"
-    $staging = Join-Path $endpointDist $packageName
+    $staging = Join-Path $stagingRoot $packageName
     $zipPath = Join-Path $endpointDist "$packageName.zip"
     $hasNativeFiles = Test-NativeFiles $nativeRoot
 

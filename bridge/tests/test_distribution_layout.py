@@ -8,6 +8,7 @@ def test_fceux_builder_writes_to_emu_dist_with_fceux_artifact_name():
     script = (REPO_ROOT / "build-fceux.ps1").read_text(encoding="utf-8")
 
     assert "dist\\emu" in script
+    assert '".staging"' in script
     assert "emu-coop-plus-$version-fceux-win32" in script
     assert "emu-coop-plus-$version-fceux-win64" in script
     assert "dist\\fceux" not in script

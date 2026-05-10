@@ -80,6 +80,8 @@ Release page:
 
 FCEUX native Lua modules must match the emulator process bitness. Running the 32-bit package under 64-bit FCEUX, or the 64-bit package under 32-bit FCEUX, can fail with a native DLL load error such as `iuplua.dll: %1 is not a valid Win32 application`.
 
+Some 64-bit FCEUX builds run Lua on a thread where IUP cannot open the connection dialog. If the log says `Must call iup.Open in main thread`, edit `coop_config.lua` in the extracted FCEUX package, set `enabled = true`, enter the shared relay session code, save, and reload `coop.lua`.
+
 ### EverDrive Pro N8
 
 1. Download and run the hardware bridge.
