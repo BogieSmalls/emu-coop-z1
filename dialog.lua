@@ -62,6 +62,17 @@ local function showIupUnavailable()
 	errorMessage("Dialog DLL unavailable; edit coop_config.lua or use a FCEUX package matching your emulator bitness.")
 end
 
+local function showModeConfigRequired(specs, reason)
+	print("Cannot open FCEUX mode selection dialog because the IUP dialog DLL is unavailable.")
+	print("Mode selection reason: " .. tostring(reason))
+	print("Set mode in coop_config.lua to one of these values, then reload coop.lua.")
+	print("Available modes:")
+	for i, spec in ipairs(specs) do
+		print("  " .. tostring(spec.name) .. "  [" .. tostring(spec.guid) .. "]")
+	end
+	errorMessage("Mode selection unavailable; set mode in coop_config.lua.")
+end
+
 -- Bizarre kludge: For reasons I do not understand at all, radio buttons do not work in FCEUX. Switch to menus there only
 local optionLetter = "o"
 if FCEU then optionLetter = "l" end
@@ -115,6 +126,7 @@ function selectDialog(specs, reason)
 			errorMessage("Mode from coop_config.lua not available: " .. tostring(mode))
 			return nil
 		end
+		showModeConfigRequired(specs, reason)
 		showIupUnavailable()
 		return nil
 	end

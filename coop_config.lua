@@ -19,7 +19,12 @@ return {
 	-- Set true when intentionally restoring state after a crash.
 	forceSend = false,
 
-	-- Optional: used only if coop.lua cannot auto-detect exactly one mode.
-	-- Accepts a mode GUID or full mode name.
+	-- Required when 64-bit FCEUX cannot open the IUP mode selection dialog and
+	-- multiple modes match the loaded ROM. Accepts a mode GUID or full mode name.
+	--
+	-- Zelda 1 mode choices:
+	--   The Legend of Zelda (sync items only)
+	--   The Legend of Zelda (sync normal and progress items)
+	--   The Legend of Zelda (sync most things)
 	-- mode = "The Legend of Zelda (sync most things)",
 }
