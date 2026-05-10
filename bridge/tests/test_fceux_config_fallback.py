@@ -23,6 +23,8 @@ def test_dialog_can_fall_back_to_connection_config_when_iup_is_unavailable():
     assert "Must call iup.Open in main thread" in dialog
     assert "coop_config.lua" in dialog
     assert "loadConnectionConfig" in dialog
+    assert 'package.loaded["coop_config"] = nil' in dialog
+    assert "connectionConfigLoaded" not in dialog
     assert "showModeConfigRequired" in dialog
     assert "Available modes:" in dialog
     assert "return normalized" in dialog

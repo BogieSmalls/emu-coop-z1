@@ -1,13 +1,8 @@
 local iupOk, iupLoadError = pcall(require, "iuplua")
 local iupUnavailableShown = false
-local connectionConfigLoaded = false
-local connectionConfig = nil
 local connectionConfigError = nil
 
 local function loadConnectionConfig()
-	if connectionConfigLoaded then return connectionConfig end
-	connectionConfigLoaded = true
-
 	package.loaded["coop_config"] = nil
 	local ok, result = pcall(require, "coop_config")
 	if not ok then
@@ -15,15 +10,16 @@ local function loadConnectionConfig()
 		return nil
 	end
 
+	connectionConfigError = nil
 	if type(result) == "table" then
-		connectionConfig = result
+		return result
 	elseif type(coopConfig) == "table" then
-		connectionConfig = coopConfig
+		return coopConfig
 	else
 		connectionConfigError = "coop_config.lua did not return a table"
 	end
 
-	return connectionConfig
+	return nil
 end
 
 local function normalizeConnectionConfig(config)
@@ -38,6 +34,10 @@ local function normalizeConnectionConfig(config)
 		forceSend = config.forceSend == true,
 	}
 
+	print("Loaded coop_config.lua: kind=" .. tostring(normalized.kind) ..
+		" host=" .. tostring(normalized.host_addr) ..
+		" port=" .. tostring(normalized.port) ..
+		" code_len=" .. tostring(string.len(tostring(normalized.code))))
 	return normalized
 end
 
