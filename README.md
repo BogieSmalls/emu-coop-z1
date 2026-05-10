@@ -63,7 +63,7 @@ Current beta5 release:
 
 - Hardware bridge for EDN8 and MiSTer: `dist/hardware/emu-coop-plus-2.0-beta5-hardware.exe`
 - Emulator package for 32-bit FCEUX: `dist/emu/emu-coop-plus-2.0-beta5-fceux-win32.zip`
-- Emulator package for 64-bit FCEUX: `dist/emu/emu-coop-plus-2.0-beta5-fceux-win64.zip` once matching win64 native DLLs are available
+- Emulator package for 64-bit FCEUX: `dist/emu/emu-coop-plus-2.0-beta5-fceux-win64.zip`
 
 Release page:
 
@@ -73,12 +73,12 @@ Release page:
 
 ### FCEUX
 
-1. Download and extract the FCEUX zip that matches your FCEUX bitness.
+1. Download and extract the FCEUX zip that matches your FCEUX bitness: `fceux-win32.zip` for 32-bit FCEUX or `fceux-win64.zip` for 64-bit FCEUX.
 2. Launch FCEUX and load your Zelda 1 ROM.
 3. From the FCEUX Lua menu, load `coop.lua`.
 4. Choose Relay or Direct, enter the agreed session code, and select the same Zelda 1 mode as your partner.
 
-The currently bundled native Lua modules are for 32-bit FCEUX. Running that package under 64-bit FCEUX can fail with `iuplua.dll: %1 is not a valid Win32 application`; use 32-bit FCEUX until a win64 package is built with matching 64-bit `iup`, `iuplua`, and LuaSocket DLLs.
+FCEUX native Lua modules must match the emulator process bitness. Running the 32-bit package under 64-bit FCEUX, or the 64-bit package under 32-bit FCEUX, can fail with a native DLL load error such as `iuplua.dll: %1 is not a valid Win32 application`.
 
 ### EverDrive Pro N8
 

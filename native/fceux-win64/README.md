@@ -1,9 +1,9 @@
 # FCEUX Win64 Native Modules
 
-Place 64-bit Lua 5.1 native modules for FCEUX here before building the win64 FCEUX package:
+These 64-bit Lua 5.1 native modules are staged into the `fceux-win64` zip by `build-fceux.ps1`:
 
-- `iup.dll`
-- `iuplua.dll`
-- `socket/core.dll`
+- `iup.dll`: IUP 3.32 Win64 dynamic library.
+- `iuplua.dll`: IUP 3.32 Lua 5.1 Win64 module, renamed from `iuplua51.dll` so `require("iuplua")` works.
+- `socket/core.dll`: LuaSocket 3.1.0 `socket.core`, built as x64 against FCEUX 2.6.6's `lua5.1.dll` ABI.
 
-The root-level DLLs are currently 32-bit and are used for `emu-coop-plus-<version>-fceux-win32.zip`.
+FCEUX 2.6.6 x64 ships `lua5.1.dll` and a `lua51.dll` compatibility forwarder; these DLLs intentionally are not bundled here.

@@ -12,7 +12,7 @@ local function showIupUnavailable()
 	else
 		print("This usually means the FCEUX package does not match your emulator bitness.")
 	end
-	print("Use 32-bit FCEUX with the fceux-win32 package, or use a fceux-win64 package built with 64-bit native DLLs.")
+	print("Use 32-bit FCEUX with the fceux-win32 package, or 64-bit FCEUX with the fceux-win64 package.")
 	errorMessage("Dialog DLL unavailable; use a FCEUX package matching your emulator bitness.")
 end
 
