@@ -15,6 +15,8 @@ def test_fceux_builder_packages_editable_connection_config():
     assert "The Legend of Zelda (sync items only)" in config
     assert "The Legend of Zelda (sync normal and progress items)" in config
     assert "The Legend of Zelda (sync most things)" in config
+    assert '\tmode = "The Legend of Zelda (sync most things)"' in config
+    assert '-- mode = "The Legend of Zelda (sync most things)"' not in config
 
 
 def test_dialog_can_fall_back_to_connection_config_when_iup_is_unavailable():

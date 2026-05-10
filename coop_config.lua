@@ -26,5 +26,5 @@ return {
 	--   The Legend of Zelda (sync items only)
 	--   The Legend of Zelda (sync normal and progress items)
 	--   The Legend of Zelda (sync most things)
-	-- mode = "The Legend of Zelda (sync most things)",
+	mode = "The Legend of Zelda (sync most things)",
 }
