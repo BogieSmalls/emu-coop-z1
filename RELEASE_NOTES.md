@@ -24,7 +24,7 @@ Any two endpoints can be paired together: FCEUX, EDN8, or MiSTer. FCEUX <-> FCEU
 - **64-bit FCEUX config fallback.** If a 64-bit FCEUX build cannot open the IUP dialog from Lua, `coop_config.lua` can provide relay/session settings directly. The fallback config ships disabled, with the Zelda 1 "sync most things" mode line ready to edit.
 - **Hardware version reporting.** Hardware app hellos now report the release version (`2.0 beta5`) instead of the internal package version.
 - **MiSTer setup polish.** The hardware setup window opens taller and the MiSTer flow is scrollable so the Continue button remains reachable.
-- **Hardware app icon.** The Windows hardware bridge now uses the Ganon icon.
+- **Hardware app icon.** The Windows hardware bridge now uses the Gannon "shyboi" icon.
 - **Relay diagnostics.** Relay payload tracing remains available for beta validation and makes sender/receiver behavior visible in `journalctl`.
 
 ## What's new in v2.0 beta 4
