@@ -6,6 +6,8 @@ For the v2.0 release line, the core goal is endpoint interoperability: FCEUX, Ev
 
 Mode files are programs, like `.exe` files. Do not install a mode file unless it came from someone you know and trust.
 
+For official support for emu-coop-z1, please visit the Z1R Racing Discord: <https://discord.gg/MX6EB26HYB>
+
 ## Supported Endpoints
 
 | Endpoint | How it connects | Notes |
