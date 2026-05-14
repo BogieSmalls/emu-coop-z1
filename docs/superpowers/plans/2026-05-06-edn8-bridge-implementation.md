@@ -278,7 +278,7 @@ if __name__ == "__main__":
 This step is for the user. They run:
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python audit_cc_capabilities.py --port COM3 > audit-output.md
 ```
 
@@ -312,7 +312,7 @@ Fill in the recommendations from the data.
 - [ ] **Step 4: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/audit_cc_capabilities.py bridge/docs/cc-patch-capabilities.md
 git commit -m "feat(bridge): add CC capability audit script + results"
 ```
@@ -404,7 +404,7 @@ Create `bridge/bridge_core/patches/.gitkeep` (empty file — placeholder so git 
 - [ ] **Step 4: Verify**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pip install -e ".[test]"
 python -c "import bridge_core; print(bridge_core.__version__)"
 ```
@@ -414,7 +414,7 @@ Expected: `0.1.0`
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/pyproject.toml bridge/.gitignore bridge/bridge_core bridge/bridge_cli bridge/bridge_gui bridge/tests
 git commit -m "feat(bridge): initialize project skeleton"
 ```
@@ -432,7 +432,7 @@ git commit -m "feat(bridge): initialize project skeleton"
 
 ```powershell
 copy "D:\Downloads\Games\ROMs\Z1R\EmuCoopBridge\Legend of Zelda, The (USA)_CC.ips" `
-     "D:\Projects\Streaming\emu-coop-z1\bridge\bridge_core\patches\zelda_cc.ips"
+     "D:\Projects\Streaming\z1rr-coop\bridge\bridge_core\patches\zelda_cc.ips"
 ```
 
 - [ ] **Step 2: Write the failing tests**
@@ -508,7 +508,7 @@ def test_is_patched_detects_applied():
 - [ ] **Step 3: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_ips.py -v
 ```
 
@@ -592,7 +592,7 @@ def is_patched(rom_bytes: bytes, patch_bytes: bytes) -> bool:
 - [ ] **Step 5: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_ips.py -v
 ```
 
@@ -601,7 +601,7 @@ Expected: `6 passed`.
 - [ ] **Step 6: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/ips.py bridge/bridge_core/patches/zelda_cc.ips bridge/tests/test_ips.py
 git commit -m "feat(bridge): add IPS patch parser/applier with vendored Z1 CC patch"
 ```
@@ -678,7 +678,7 @@ class MockSerial:
 - [ ] **Step 2: Commit (no separate test for the mock — its first user is `test_cc_client.py`)**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/tests/mock_serial.py
 git commit -m "test(bridge): add MockSerial fixture"
 ```
@@ -817,7 +817,7 @@ class MockCCServer:
 - [ ] **Step 2: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/tests/mock_cc_server.py
 git commit -m "test(bridge): add MockCCServer fixture"
 ```
@@ -903,7 +903,7 @@ def test_poll_response_returns_none_on_timeout():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_cc_client.py -v
 ```
 
@@ -1060,7 +1060,7 @@ class CCClient:
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_cc_client.py -v
 ```
 
@@ -1069,7 +1069,7 @@ Expected: `6 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/cc_client.py bridge/tests/test_cc_client.py
 git commit -m "feat(bridge): add CC client (USB serial frame protocol)"
 ```
@@ -1167,7 +1167,7 @@ def test_function_kind_invokes_callback():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_sync_engine.py -v
 ```
 
@@ -1271,7 +1271,7 @@ def record_changed(
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_sync_engine.py -v
 ```
 
@@ -1280,7 +1280,7 @@ Expected: `9 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/sync_engine.py bridge/tests/test_sync_engine.py
 git commit -m "feat(bridge): port record_changed() from driver.lua"
 ```
@@ -1354,7 +1354,7 @@ def test_bomb_record_has_delta_kind():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_modes_tloz_all.py -v
 ```
 
@@ -1488,7 +1488,7 @@ for _i in range(0x06FF, 0x07FF):
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_modes_tloz_all.py -v
 ```
 
@@ -1497,7 +1497,7 @@ Expected: `8 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/modes/tloz_all.py bridge/tests/test_modes_tloz_all.py
 git commit -m "feat(bridge): port tloz_all mode from Lua"
 ```
@@ -1579,7 +1579,7 @@ def test_sync_engine_resync_clears_cache():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_sync_engine.py -v
 ```
 
@@ -1710,7 +1710,7 @@ class SyncEngine:
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_sync_engine.py -v
 ```
 
@@ -1719,7 +1719,7 @@ Expected: `15 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/sync_engine.py bridge/tests/test_sync_engine.py
 git commit -m "feat(bridge): add SyncEngine class (poll/cache/handleTable/resync)"
 ```
@@ -1818,7 +1818,7 @@ def mock_pair() -> tuple[MockSocket, MockSocket]:
 - [ ] **Step 2: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/tests/mock_socket.py
 git commit -m "test(bridge): add MockSocket fixture"
 ```
@@ -1884,7 +1884,7 @@ def test_decode_invalid_json_raises():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -1943,7 +1943,7 @@ def try_decode_frame(buf: bytes) -> tuple[dict | None, int]:
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -1952,7 +1952,7 @@ Expected: `5 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/pipe_client.py bridge/tests/test_pipe_client.py
 git commit -m "feat(bridge): add length-prefix JSON framing"
 ```
@@ -2072,7 +2072,7 @@ def test_pipe_client_aborts_on_version_mismatch():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -2223,7 +2223,7 @@ class PipeClient:
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -2232,7 +2232,7 @@ Expected: `9 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/pipe_client.py bridge/tests/test_pipe_client.py
 git commit -m "feat(bridge): add PipeClient with hello state machine"
 ```
@@ -2298,7 +2298,7 @@ def test_heartbeat_does_not_fail_with_recent_traffic():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -2363,7 +2363,7 @@ In `_handle_frame`, at the very top, add:
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -2372,7 +2372,7 @@ Expected: `12 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/pipe_client.py bridge/tests/test_pipe_client.py
 git commit -m "feat(bridge): add heartbeat (ping/pong + 15s silence timeout)"
 ```
@@ -2410,7 +2410,7 @@ def test_backoff_sequence():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -2466,7 +2466,7 @@ Add the new method:
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_pipe_client.py -v
 ```
 
@@ -2475,7 +2475,7 @@ Expected: `14 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/pipe_client.py bridge/tests/test_pipe_client.py
 git commit -m "feat(bridge): add reconnect state machine + backoff schedule"
 ```
@@ -2531,7 +2531,7 @@ def test_multi_sink_dispatches_to_all_subscribers():
 - [ ] **Step 2: Run tests to verify red**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_status_sink.py -v
 ```
 
@@ -2593,7 +2593,7 @@ class MultiSink:
 - [ ] **Step 4: Run tests to verify green**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/test_status_sink.py -v
 ```
 
@@ -2602,7 +2602,7 @@ Expected: `2 passed`.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_core/status_sink.py bridge/tests/test_status_sink.py
 git commit -m "feat(bridge): add StatusSink interface + ConsoleStatusSink"
 ```
@@ -2623,7 +2623,7 @@ Create `bridge/bridge_cli/__main__.py`:
 
 Usage:
   python -m bridge_cli run --mode tloz_all --port COM3 --code mycode \
-                            [--relay 129.158.62.225] [--relay-port 9999]
+                            [--relay coop.z1rracing.com] [--relay-port 9999]
                             [--force-send]
   python -m bridge_cli patch <input.nes> -o <output.nes>
   python -m bridge_cli read --port COM3 --addr 0x0657 --length 16
@@ -2794,7 +2794,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--port", required=True, help="Serial port (e.g. COM3)")
     p_run.add_argument("--baud", type=int, default=115200)
     p_run.add_argument("--code", required=True, help="Session code (6+ chars)")
-    p_run.add_argument("--relay", default="129.158.62.225")
+    p_run.add_argument("--relay", default="coop.z1rracing.com")
     p_run.add_argument("--relay-port", type=int, default=9999)
     p_run.add_argument("--force-send", action="store_true")
 
@@ -2815,7 +2815,7 @@ if __name__ == "__main__":
 - [ ] **Step 2: Smoke test the CLI**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_cli --help
 python -m bridge_cli patch --help
 python -m bridge_cli run --help
@@ -2826,7 +2826,7 @@ All three should print help text without errors.
 - [ ] **Step 3: Run all tests**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/ -v
 ```
 
@@ -2835,7 +2835,7 @@ Expected: all green (still 14 + 9 + 8 + 15 + 5 + 6 + 2 = 59 ish, depending on co
 - [ ] **Step 4: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_cli/__main__.py
 git commit -m "feat(bridge): add CLI entry point with patch/read/run subcommands"
 ```
@@ -2858,7 +2858,7 @@ Have ready:
 - [ ] **Step 2: Patch the ROM**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_cli patch "C:\path\to\zelda_seed.nes" -o "C:\path\to\zelda_seed_CC.nes"
 ```
 
@@ -2877,7 +2877,7 @@ Or use Device Manager → Ports (COM & LPT). Note the COM number (e.g., COM3).
 - [ ] **Step 4: Run the bridge against OCI relay**
 
 ```powershell
-python -m bridge_cli run --mode tloz_all --port COM3 --code testbridge1 --relay 129.158.62.225
+python -m bridge_cli run --mode tloz_all --port COM3 --code testbridge1 --relay coop.z1rracing.com
 ```
 
 You should see:
@@ -2890,7 +2890,7 @@ The bridge will hold in WAITING for a partner.
 
 - [ ] **Step 5: Connect a FCEUX peer**
 
-In FCEUX, load the same Z1R seed (unpatched is fine for FCEUX), load coop.lua, set transport=Relay, host=129.158.62.225, port=9999, code=`testbridge1`.
+In FCEUX, load the same Z1R seed (unpatched is fine for FCEUX), load coop.lua, set transport=Relay, host=coop.z1rracing.com, port=9999, code=`testbridge1`.
 
 Both should pair within 1 second. Bridge logs "state -> ESTABLISHED".
 
@@ -2916,7 +2916,7 @@ Append a section to `bridge/docs/cc-patch-capabilities.md`:
 - [ ] **Step 8: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/docs/cc-patch-capabilities.md
 git commit -m "docs(bridge): record CLI smoke test results"
 ```
@@ -3064,7 +3064,7 @@ class SessionScreen(ctk.CTkFrame):
 - [ ] **Step 4: Smoke-test the GUI loads**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_gui
 ```
 
@@ -3073,7 +3073,7 @@ A window should open showing "ROM Setup (placeholder)" with a "Continue" button.
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_gui/
 git commit -m "feat(bridge): add GUI app shell with screen navigation"
 ```
@@ -3196,7 +3196,7 @@ class ROMSetupScreen(ctk.CTkFrame):
 - [ ] **Step 2: Manual smoke-test**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_gui
 ```
 
@@ -3207,7 +3207,7 @@ python -m bridge_gui
 - [ ] **Step 3: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_gui/setup_screen.py
 git commit -m "feat(bridge): implement ROM Setup screen (file picker, IPS detection)"
 ```
@@ -3232,7 +3232,7 @@ import serial.tools.list_ports
 
 
 AVAILABLE_MODES = ["tloz_all"]  # extend as more modes are ported
-DEFAULT_RELAY = "129.158.62.225"
+DEFAULT_RELAY = "coop.z1rracing.com"
 DEFAULT_RELAY_PORT = 9999
 
 
@@ -3353,7 +3353,7 @@ class RelaySetupScreen(ctk.CTkFrame):
 - [ ] **Step 2: Smoke-test**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_gui
 ```
 
@@ -3366,7 +3366,7 @@ Navigate ROM Setup → Relay Setup. Verify:
 - [ ] **Step 3: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_gui/relay_setup_screen.py
 git commit -m "feat(bridge): implement Relay Setup screen with COM port detection"
 ```
@@ -3502,7 +3502,7 @@ class SessionScreen(ctk.CTkFrame):
 - [ ] **Step 2: Smoke-test**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_gui
 ```
 
@@ -3514,7 +3514,7 @@ Navigate to Session screen. Verify:
 - [ ] **Step 3: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_gui/session_screen.py
 git commit -m "feat(bridge): implement Session screen with two-readiness indicators + tabs"
 ```
@@ -3734,7 +3734,7 @@ Modify `bridge/bridge_gui/session_screen.py` — replace the `on_show` and `_dis
 - [ ] **Step 3: Smoke-test (no hardware)**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_gui
 ```
 
@@ -3751,7 +3751,7 @@ Expected: all tests pass (the session_worker isn't unit-tested yet, but the unit
 - [ ] **Step 5: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge_gui/session_worker.py bridge/bridge_gui/session_screen.py
 git commit -m "feat(bridge): wire SyncEngine + PipeClient into Session screen via worker thread"
 ```
@@ -3767,7 +3767,7 @@ This task is for the user. Verify the GUI works end-to-end with real hardware.
 - [ ] **Step 1: Launch the GUI**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m bridge_gui
 ```
 
@@ -3815,7 +3815,7 @@ Append to `bridge/docs/cc-patch-capabilities.md`:
 - [ ] **Step 7: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/docs/cc-patch-capabilities.md
 git commit -m "docs(bridge): record GUI smoke test results"
 ```
@@ -3921,7 +3921,7 @@ Pop-Location
 - [ ] **Step 3: Build the .exe**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
 ```
 
@@ -3946,7 +3946,7 @@ build/
 - [ ] **Step 6: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/bridge.spec bridge/build-windows.ps1 bridge/.gitignore
 git commit -m "feat(bridge): add PyInstaller spec + Windows build script"
 ```
@@ -3962,7 +3962,7 @@ This is the final hardware test. Verify the bundled `.exe` works on a fresh mach
 - [ ] **Step 1: Build a clean copy**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
 ```
 
@@ -4103,7 +4103,7 @@ powershell -ExecutionPolicy Bypass -File .\build-windows.ps1
 - [ ] **Step 2: Commit**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add bridge/README.md
 git commit -m "docs(bridge): add end-user README"
 ```
@@ -4119,7 +4119,7 @@ git commit -m "docs(bridge): add end-user README"
 - [ ] **Step 1: Read top-level README**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 type README.md
 ```
 
@@ -4143,13 +4143,13 @@ Edit `version.lua`. Change `release = "1.3"` to `release = "1.4"` (this isn't st
 - [ ] **Step 4: Run all tests as a final regression check**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 C:\Users\bogie\AppData\Local\Programs\LuaJIT\bin\luajit.exe tests/run.lua tests/test_json.lua tests/test_mock_socket.lua tests/test_frame.lua tests/test_handshake.lua tests/test_pipe_direct.lua tests/test_heartbeat.lua tests/test_reconnect.lua tests/test_driver_resync.lua tests/test_pipe_relay.lua
 
-cd D:\Projects\Streaming\emu-coop-z1\relay
+cd D:\Projects\Streaming\z1rr-coop\relay
 python -m pytest tests/ --timeout=15
 
-cd D:\Projects\Streaming\emu-coop-z1\bridge
+cd D:\Projects\Streaming\z1rr-coop\bridge
 python -m pytest tests/ --timeout=15
 ```
 
@@ -4158,7 +4158,7 @@ Expected: 27 Lua + 6 Python (relay) + ~50 Python (bridge). All green.
 - [ ] **Step 5: Commit and push**
 
 ```powershell
-cd D:\Projects\Streaming\emu-coop-z1
+cd D:\Projects\Streaming\z1rr-coop
 git add README.md version.lua
 git commit -m "docs: link to bridge from top-level README; bump to 1.4"
 git push origin stable

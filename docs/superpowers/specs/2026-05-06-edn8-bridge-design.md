@@ -42,7 +42,7 @@
    ├─ bridge_cli         argparse wrapper for power users
    └─ bridge_gui         CustomTkinter GUI app
          ↑↓ TCP @ 9999
-[OCI relay] 129.158.62.225:9999
+[OCI relay] coop.z1rracing.com:9999
          ↑↓ TCP
 [FCEUX peer running coop.lua]
 ```
@@ -57,10 +57,10 @@ These three stitch together via a main loop in the CLI/GUI entry point. Each com
 
 ### Codebase location
 
-`emu-coop-z1/bridge/` as a sibling to `relay/`. Same monorepo philosophy. Independent `pyproject.toml`, independent tests, independent deployable.
+`z1rr-coop/bridge/` as a sibling to `relay/`. Same monorepo philosophy. Independent `pyproject.toml`, independent tests, independent deployable.
 
 ```
-emu-coop-z1/
+z1rr-coop/
 ├── bridge/
 │   ├── pyproject.toml
 │   ├── bridge_core/             pure-Python library; no GUI deps
@@ -143,7 +143,7 @@ For each Lua mode file in `modes/*.lua`, there's an equivalent Python file in `b
     ↓
 [Relay Setup screen]
   - Mode dropdown (default: tloz_all)
-  - Relay address (default: 129.158.62.225) + port (9999)
+  - Relay address (default: coop.z1rracing.com) + port (9999)
   - Session code (text, must be 6+ chars to enable Connect)
   - COM port (auto-detected; manual override available)
   - "Resending all my state on connect" checkbox (forceSend; default off)
@@ -287,7 +287,7 @@ Organized by phase.
 | Failure | Handling |
 |---|---|
 | COM port can't open | Inline: "Can't open COM3. Plug in your cart and click Connect again." |
-| Relay TCP unreachable | Inline: "Can't reach 129.158.62.225:9999. Check your internet." |
+| Relay TCP unreachable | Inline: "Can't reach coop.z1rracing.com:9999. Check your internet." |
 | Session code under 6 chars | Connect button stays disabled; tooltip explains. |
 | Relay returns `code in use` | Inline: "Session code already in use. Pick a different one." |
 | Mode/version mismatch | Brief Session screen with state going red, then auto-return to Relay Setup with hint: "Partner is using mode X. Pick the same mode and reconnect." |

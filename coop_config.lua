@@ -9,7 +9,7 @@ return {
 
 	-- "relay" is the normal internet play path. "direct" is for LAN/Tailscale.
 	kind = "relay",
-	host_addr = "129.158.62.225",
+	host_addr = "coop.z1rracing.com",
 	port = 9999,
 	code = "",
 

@@ -1,6 +1,6 @@
 # MiSTer NES port — strategy & resources
 
-Forward-looking notes on extending emu-coop-plus to a third endpoint: a real
+Forward-looking notes on extending z1rr-coop to a third endpoint: a real
 MiSTer FPGA running the NES core. Today the bridge supports FCEUX (Lua) and
 the Everdrive Pro N8 cart (USB serial). MiSTer is a natural third because
 the same Linux-on-Cyclone-V SBC that runs the cores can also host a small
@@ -8,7 +8,7 @@ bridge daemon and talk to the same shared relay as our other endpoints.
 
 ## What we need
 
-emu-coop-plus's bridge protocol is small. To support any new endpoint we
+z1rr-coop's bridge protocol is small. To support any new endpoint we
 need exactly two operations against NES memory:
 
 - `Read(addr, len)` — poll Z1's CPU RAM ($0000-$07FF)
@@ -100,7 +100,7 @@ top of their existing read mirror. Concretely:
    serial. MiSTer composes two independent transports: reads come from the DDRAM
    mirror via mmap, while writes go through the new FPGA UART/TCP write channel.
    Future endpoints can reuse the same sync engine.
-6. **Choose protocol scope deliberately.** emu-coop-plus only needs
+6. **Choose protocol scope deliberately.** z1rr-coop only needs
    `Read(addr, len)` and `WritePairs(...)`. We can run a tiny framed protocol
    over the UART/TCP pipe and skip full SNI/QUsb2snes. Optionally: implement the
    SNI write subset for interop with future randomizer tooling.

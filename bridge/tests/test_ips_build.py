@@ -63,7 +63,7 @@ def test_eof_offset_collision_raises():
 
 
 def test_real_zelda_cc_patch_roundtrips():
-    """Sanity check: applying our existing zelda_emu_coop_plus.ips to the original ROM,
+    """Sanity check: applying our existing zelda_z1rr_coop.ips to the original ROM,
     then rebuilding an IPS from (orig, patched), should produce a patch that
     when applied to the original yields the same patched ROM. We can't assert
     byte-equality of the IPS itself (different valid encodings exist), but we
@@ -73,7 +73,7 @@ def test_real_zelda_cc_patch_roundtrips():
     if not rom_path.exists():
         pytest.skip("original Z1 ROM not present at expected path")
     orig = rom_path.read_bytes()
-    patch = Path("bridge_core/patches/zelda_emu_coop_plus.ips").read_bytes()
+    patch = Path("bridge_core/patches/zelda_z1rr_coop.ips").read_bytes()
     patched = apply(orig, patch)
     rebuilt_ips = make_ips(orig, patched)
     rebuilt_patched = apply(orig, rebuilt_ips)

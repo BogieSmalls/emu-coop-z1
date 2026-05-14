@@ -12,9 +12,9 @@
 # Usage: powershell -ExecutionPolicy Bypass -File .\build-fceux.ps1
 #
 # Output:
-#   dist\emu\emu-coop-plus-<version>-fceux-win32.zip
-#   dist\emu\emu-coop-plus-<version>-fceux-win64.zip (when win64 DLLs exist)
-# Package name pattern: emu-coop-plus-$version-fceux-win32 / emu-coop-plus-$version-fceux-win64
+#   dist\emu\z1rr-coop-<version>-fceux-win32.zip
+#   dist\emu\z1rr-coop-<version>-fceux-win64.zip (when win64 DLLs exist)
+# Package name pattern: z1rr-coop-$version-fceux-win32 / z1rr-coop-$version-fceux-win64
 
 $ErrorActionPreference = "Stop"
 Push-Location $PSScriptRoot
@@ -28,7 +28,7 @@ if (-not $versionLine) {
 $rawVersion = $versionLine.Matches[0].Groups[1].Value
 $version = $rawVersion -replace '\s+', '-'   # "2.0 beta1" -> "2.0-beta1"
 
-$packageBaseName = "emu-coop-plus-$version-fceux"
+$packageBaseName = "z1rr-coop-$version-fceux"
 $endpointDist = Join-Path $PSScriptRoot "dist\emu"
 $stagingRoot = Join-Path $endpointDist ".staging"
 New-Item -ItemType Directory -Path $endpointDist -Force | Out-Null

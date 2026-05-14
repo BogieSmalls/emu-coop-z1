@@ -48,7 +48,7 @@ def test_invalid_header_raises():
 
 def test_zelda_cc_patch_loads():
     """The vendored Z1 CC patch should be parseable."""
-    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_emu_coop_plus.ips"
+    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_z1rr_coop.ips"
     raw = patch_path.read_bytes()
     records = list(ips.parse(io.BytesIO(raw)))
     assert len(records) > 0
@@ -109,9 +109,9 @@ def test_real_manifest_validates_against_vanilla_prg0_and_prg1():
     if not (os.path.exists(prg0_path) and os.path.exists(prg1_path)):
         pytest.skip("vanilla ROMs not available on this machine")
     patches = Path(__file__).parent.parent / "bridge_core" / "patches"
-    patch_bytes = (patches / "zelda_emu_coop_plus.ips").read_bytes()
+    patch_bytes = (patches / "zelda_z1rr_coop.ips").read_bytes()
     expected = ips.load_expected_manifest(
-        (patches / "zelda_emu_coop_plus.expected.json").read_bytes()
+        (patches / "zelda_z1rr_coop.expected.json").read_bytes()
     )
     prg0 = Path(prg0_path).read_bytes()
     prg1 = Path(prg1_path).read_bytes()

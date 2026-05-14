@@ -12,9 +12,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = $PSScriptRoot
-$coreDir = Join-Path $repoRoot "mister/cores/NES_emu-coop"
+$coreDir = Join-Path $repoRoot "mister/cores/NES_z1rr-coop"
 $builtRbf = Join-Path $coreDir "output_files\NES.rbf"
-$payloadRbf = Join-Path $repoRoot "bridge\bridge_core\mister_payload\NES_emu-coop.rbf"
+$payloadRbf = Join-Path $repoRoot "bridge\bridge_core\mister_payload\NES_z1rr-coop.rbf"
 
 function Find-QuartusSh {
     param([string]$BinPath)

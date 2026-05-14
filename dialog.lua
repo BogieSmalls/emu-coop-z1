@@ -90,14 +90,14 @@ function connectionDialog()
 
 	local res, transport, host_addr, port, code, isHost, forceSend = iup.GetParam(
 	    "Connection settings", nil,
-	    "Transport: %" .. optionLetter .. "|Direct (LAN/Tailscale)|Relay (via OCI server)|\n" ..
+	    "Transport: %" .. optionLetter .. "|Direct (LAN/Tailscale)|Relay (coop.z1rracing.com)|\n" ..
 		"Host address (Direct: peer's IP, or relay address): %s\n" ..
 		"Port: %i\n" ..
 		"Session code (Relay only, 6+ chars): %s\n" ..
 		"Are you the host? (Direct only) %" .. optionLetter .. "|No|Yes|\n" ..
 		"%t\n" ..
 		"Are you restarting\rafter a crash? %" .. optionLetter .. "|No|Yes|\n",
-	    1, "129.158.62.225", 9999, "", 0, 0)
+	    1, "coop.z1rracing.com", 9999, "", 0, 0)
 
 	if 0 == res then return nil end
 

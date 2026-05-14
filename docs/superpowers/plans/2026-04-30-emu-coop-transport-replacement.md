@@ -1411,7 +1411,7 @@ Create `relay/pyproject.toml`:
 
 ```toml
 [project]
-name = "emu-coop-relay"
+name = "z1rr-coop-relay"
 version = "0.1.0"
 description = "Relay daemon for emu-coop"
 requires-python = ">=3.11"
@@ -2344,13 +2344,13 @@ After=network.target
 Type=simple
 User=relay
 Group=relay
-WorkingDirectory=/opt/emu-coop-relay
+WorkingDirectory=/opt/z1rr-coop-relay
 Environment="RELAY_PORT=9999"
 Environment="RELAY_MAX_PAIRS=100"
 Environment="RELAY_TTL_SECONDS=600"
 Environment="RELAY_GRACE_SECONDS=60"
 Environment="RELAY_IDLE_SECONDS=30"
-ExecStart=/opt/emu-coop-relay/.venv/bin/python -m relay
+ExecStart=/opt/z1rr-coop-relay/.venv/bin/python -m relay
 Restart=on-failure
 RestartSec=5
 
@@ -2407,16 +2407,16 @@ Verify: from your laptop, `nc -zv <vm-public-ip> 9999` should show "succeeded".
 ssh ubuntu@<vm-public-ip>
 sudo apt update && sudo apt install -y python3.11 python3.11-venv git
 sudo useradd -r -s /usr/sbin/nologin relay
-sudo mkdir /opt/emu-coop-relay && sudo chown relay:relay /opt/emu-coop-relay
-sudo -u relay git clone https://github.com/BogieSmalls/emu-coop-z1.git /tmp/emu-coop-z1
-sudo -u relay cp -r /tmp/emu-coop-z1/relay/* /opt/emu-coop-relay/
-sudo -u relay python3.11 -m venv /opt/emu-coop-relay/.venv
-sudo -u relay /opt/emu-coop-relay/.venv/bin/pip install -e /opt/emu-coop-relay
+sudo mkdir /opt/z1rr-coop-relay && sudo chown relay:relay /opt/z1rr-coop-relay
+sudo -u relay git clone https://github.com/BogieSmalls/z1rr-coop.git /tmp/z1rr-coop
+sudo -u relay cp -r /tmp/z1rr-coop/relay/* /opt/z1rr-coop-relay/
+sudo -u relay python3.11 -m venv /opt/z1rr-coop-relay/.venv
+sudo -u relay /opt/z1rr-coop-relay/.venv/bin/pip install -e /opt/z1rr-coop-relay
 ```
 
 ### 4. Install systemd unit
 ```bash
-sudo cp /opt/emu-coop-relay/deploy/relay.service /etc/systemd/system/
+sudo cp /opt/z1rr-coop-relay/deploy/relay.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now relay
 sudo systemctl status relay

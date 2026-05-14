@@ -18,7 +18,7 @@ MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, or MiSTer <-> MiSTer.
 
 ## Quick start
 
-1. **Download `emu-coop-plus-2.0-beta5-hardware.exe`** (single file, ~19 MB).
+1. **Download `z1rr-coop-2.0-beta6-hardware.exe`** (single file, ~19 MB).
 2. **Run the .exe** and choose `EverDrive Pro N8` or `MiSTer`.
 3. For **EDN8**, plug in your cart and follow the patch/upload flow:
    - Pick your Z1 ROM (vanilla or Z1R seed; both work)
@@ -26,13 +26,13 @@ MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, or MiSTer <-> MiSTer.
    - Choose a session code (any 6+ char string you and your partner agree on)
    - Connect to the relay
 4. For **MiSTer**, enter your MiSTer host/IP, keep the default `root` / `1` credentials unless changed, and deploy:
-   - `mister-helper.py` to `/media/fat/Scripts/emu-coop/`
-   - the custom core as `/media/fat/_Console/NES_emu-coop.rbf`
-   - your source ROM under `/media/fat/games/NES/emu-coop-plus/`
+   - `mister-helper.py` to `/media/fat/Scripts/z1rr-coop/`
+   - the custom core as `/media/fat/_Console/NES_z1rr-coop.rbf`
+   - your source ROM under `/media/fat/games/NES/z1rr-coop/`
 5. **Play co-op.**
 
 MiSTer support uses the bundled custom odelot fork core artifact,
-`bridge_core/mister_payload/NES_emu-coop.rbf`. Source builds can regenerate it
+`bridge_core/mister_payload/NES_z1rr-coop.rbf`. Source builds can regenerate it
 with `build-mister-core.ps1`; the GUI and `mister-deploy` command stop with a
 clear missing-core error if it is not present.
 
@@ -69,7 +69,7 @@ program using the cart and click Connect again.
 
 ### "MiSTer core asset missing locally"
 
-The bridge found the helper payload but not `NES_emu-coop.rbf`. Build the custom
+The bridge found the helper payload but not `NES_z1rr-coop.rbf`. Build the custom
 odelot NES core fork from the repo root:
 
 ```powershell
@@ -77,7 +77,7 @@ powershell -ExecutionPolicy Bypass -File .\build-mister-core.ps1
 ```
 
 The script copies the output to
-`bridge/bridge_core/mister_payload/NES_emu-coop.rbf`; deploy again after it
+`bridge/bridge_core/mister_payload/NES_z1rr-coop.rbf`; deploy again after it
 finishes.
 
 ### "Partner has incompatible mode (guid mismatch)"
@@ -116,7 +116,7 @@ To build a Windows distributable:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build-hardware.ps1
-# Output: ..\dist\hardware\emu-coop-plus-<version>-hardware.exe
+# Output: ..\dist\hardware\z1rr-coop-<version>-hardware.exe
 ```
 
 ### EDN8 polling diagnostics

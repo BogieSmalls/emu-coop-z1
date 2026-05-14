@@ -10,7 +10,7 @@ def test_fceux_builder_packages_editable_connection_config():
 
     assert '"coop_config.lua"' in script
     assert 'enabled = false' in config
-    assert 'host_addr = "129.158.62.225"' in config
+    assert 'host_addr = "coop.z1rracing.com"' in config
     assert 'code = ""' in config
     assert "The Legend of Zelda (sync items only)" in config
     assert "The Legend of Zelda (sync normal and progress items)" in config

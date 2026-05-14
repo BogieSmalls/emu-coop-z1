@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone MiSTer memory helper for emu-coop-plus.
+"""Standalone MiSTer memory helper for z1rr-coop.
 
 This script intentionally uses only Python stdlib so it can run on MiSTer's
 Linux side without installing the full PC bridge package.

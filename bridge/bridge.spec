@@ -11,11 +11,11 @@ a = Analysis(
     binaries=[],
     datas=[
         ('assets/ganon_blue.ico', 'assets'),
-        ('bridge_core/patches/zelda_emu_coop_plus.ips', 'bridge_core/patches'),
-        ('bridge_core/patches/zelda_emu_coop_plus.expected.json', 'bridge_core/patches'),
+        ('bridge_core/patches/zelda_z1rr_coop.ips', 'bridge_core/patches'),
+        ('bridge_core/patches/zelda_z1rr_coop.expected.json', 'bridge_core/patches'),
         ('bridge_core/mister_payload/manifest.json', 'bridge_core/mister_payload'),
         ('bridge_core/mister_payload/mister-helper.py', 'bridge_core/mister_payload'),
-        ('bridge_core/mister_payload/NES_emu-coop.rbf', 'bridge_core/mister_payload'),
+        ('bridge_core/mister_payload/NES_z1rr-coop.rbf', 'bridge_core/mister_payload'),
         ('tools/edlink-n8.exe', 'tools'),
     ],
     hiddenimports=[

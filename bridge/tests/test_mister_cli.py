@@ -29,8 +29,8 @@ def test_mister_deploy_cli_passes_ssh_defaults(monkeypatch, capsys):
         cli,
         "_load_mister_payload_manifest",
         lambda: {
-            "helper": {"remote_path": "/media/fat/Scripts/emu-coop/mister-helper.py", "port": 55355},
-            "roms": {"remote_dir": "/media/fat/games/NES/emu-coop-plus"},
+            "helper": {"remote_path": "/media/fat/Scripts/z1rr-coop/mister-helper.py", "port": 55355},
+            "roms": {"remote_dir": "/media/fat/games/NES/z1rr-coop"},
         },
         raising=False,
     )
@@ -43,7 +43,7 @@ def test_mister_deploy_cli_passes_ssh_defaults(monkeypatch, capsys):
     assert captured["config"].password == "1"
     assert captured["config"].port == 22
     assert captured["assets"] == ["asset"]
-    assert captured["restart"] == ("/media/fat/Scripts/emu-coop/mister-helper.py", 55355)
+    assert captured["restart"] == ("/media/fat/Scripts/z1rr-coop/mister-helper.py", 55355)
     assert captured["closed"] is True
     assert "MiSTer deploy complete" in capsys.readouterr().out
 
@@ -83,7 +83,7 @@ def test_mister_deploy_cli_accepts_custom_username_password_and_rom(
         "_load_mister_payload_manifest",
         lambda: {
             "helper": {"remote_path": "/helper.py", "port": 55355},
-            "roms": {"remote_dir": "/media/fat/games/NES/emu-coop-plus"},
+            "roms": {"remote_dir": "/media/fat/games/NES/z1rr-coop"},
         },
         raising=False,
     )
@@ -108,7 +108,7 @@ def test_mister_deploy_cli_accepts_custom_username_password_and_rom(
     assert captured["config"].username == "admin"
     assert captured["config"].password == "secret"
     assert captured["config"].port == 2222
-    assert captured["stage_rom"] == (rom, "/media/fat/games/NES/emu-coop-plus")
+    assert captured["stage_rom"] == (rom, "/media/fat/games/NES/z1rr-coop")
 
 
 def test_mister_deploy_cli_reports_missing_local_core(monkeypatch, capsys):
@@ -121,14 +121,14 @@ def test_mister_deploy_cli_reports_missing_local_core(monkeypatch, capsys):
     monkeypatch.setattr(
         cli,
         "_build_mister_deploy_assets",
-        lambda manifest: (_ for _ in ()).throw(FileNotFoundError("NES_emu-coop.rbf")),
+        lambda manifest: (_ for _ in ()).throw(FileNotFoundError("NES_z1rr-coop.rbf")),
         raising=False,
     )
 
     rc = cli.main(["mister-deploy", "--host", "192.168.1.50"])
 
     assert rc == 2
-    assert "NES_emu-coop.rbf" in capsys.readouterr().err
+    assert "NES_z1rr-coop.rbf" in capsys.readouterr().err
 
 
 def test_mister_read_cli_reads_hex_bytes_from_mirror_file(tmp_path, capsys):
@@ -458,3 +458,71 @@ def test_mister_run_cli_can_use_write_capable_session(monkeypatch):
     assert "readonly_runner" not in captured
     assert captured["sync_runner"]["poll_hz"] == 10
     assert captured["helper"] == ("mister.local", 55355, 1.0)
+    assert captured["relay_address"] == ("coop.z1rracing.com", 9999)
+
+
+def test_edn8_run_cli_defaults_to_public_relay_hostname(monkeypatch):
+    captured = {}
+
+    class FakeSerial:
+        def __init__(self, port, baudrate, timeout):
+            captured["serial"] = (port, baudrate, timeout)
+
+        def close(self):
+            captured["serial_closed"] = True
+
+    class FakeSocket:
+        def connect(self, address):
+            captured["relay_address"] = address
+
+        def setblocking(self, blocking):
+            captured["relay_blocking"] = blocking
+
+        def close(self):
+            captured["socket_closed"] = True
+
+    class FakeCCClient:
+        def __init__(self, serial_port):
+            captured["cc_serial"] = serial_port
+
+    class FakeEndpoint:
+        def __init__(self, client):
+            captured["endpoint_client"] = client
+
+    class FakePipe:
+        def __init__(self, socket, code, peer_id):
+            captured["pipe_code"] = code
+            self.state = "CLOSED"
+            self.on_data = None
+            self.on_abort = None
+            self.on_partner_reconnected = None
+            self._reconnect_enabled = False
+
+        def send_join(self):
+            captured["join_sent"] = True
+
+        def close(self):
+            captured["pipe_closed"] = True
+
+    monkeypatch.setattr(cli.serial, "Serial", FakeSerial)
+    monkeypatch.setattr(cli.socket, "socket", lambda *args: FakeSocket())
+    monkeypatch.setattr(cli, "CCClient", FakeCCClient)
+    monkeypatch.setattr(cli, "CCMemoryEndpoint", FakeEndpoint)
+    monkeypatch.setattr(cli, "PipeClient", FakePipe)
+
+    rc = cli.main(
+        [
+            "run",
+            "--mode",
+            "tloz_all",
+            "--port",
+            "COM5",
+            "--code",
+            "abc123",
+        ]
+    )
+
+    assert rc == 0
+    assert captured["relay_address"] == ("coop.z1rracing.com", 9999)
+    assert captured["relay_blocking"] is False
+    assert captured["pipe_code"] == "abc123"

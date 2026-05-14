@@ -8,7 +8,7 @@ from bridge_gui.device_flow import DEVICE_EDN8, DEVICE_MISTER, build_session_con
 
 
 AVAILABLE_MODES = ["tloz_basic", "tloz_progress", "tloz_all"]  # extend as more modes are ported
-DEFAULT_RELAY = "129.158.62.225"
+DEFAULT_RELAY = "coop.z1rracing.com"
 DEFAULT_RELAY_PORT = 9999
 
 

@@ -2,10 +2,10 @@
 
 This folder vendors the emu-coop MiSTer NES core fork used by the beta4 POC.
 
-- Quartus project: `mister/cores/NES_emu-coop/NES.qpf`
-- Expected Quartus output: `mister/cores/NES_emu-coop/output_files/NES.rbf`
-- Bridge payload copy: `bridge/bridge_core/mister_payload/NES_emu-coop.rbf`
-- MiSTer deploy target: `/media/fat/_Console/NES_emu-coop.rbf`
+- Quartus project: `mister/cores/NES_z1rr-coop/NES.qpf`
+- Expected Quartus output: `mister/cores/NES_z1rr-coop/output_files/NES.rbf`
+- Bridge payload copy: `bridge/bridge_core/mister_payload/NES_z1rr-coop.rbf`
+- MiSTer deploy target: `/media/fat/_Console/NES_z1rr-coop.rbf`
 
 Build from the repo root after installing Intel Quartus Prime Lite 17.0 with
 Cyclone V support:
@@ -21,4 +21,4 @@ powershell -ExecutionPolicy Bypass -File .\build-mister-core.ps1 -QuartusBin C:\
 ```
 
 The wrapper runs `quartus_sh --flow compile NES` and then copies the generated
-`.rbf` into the bridge payload using the non-stock `NES_emu-coop.rbf` name.
+`.rbf` into the bridge payload using the non-stock `NES_z1rr-coop.rbf` name.

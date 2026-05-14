@@ -1,4 +1,4 @@
-"""Relocate the emu-coop-plus main-code regions out of bank 6 into bank 4.
+"""Relocate the z1rr-coop main-code regions out of bank 6 into bank 4.
 
 The original (CC-derived) IPS lays its ~1.1 KB of NMI/main-loop/dispatcher code
 in bank 6 at CPU $B290-$BED1. Several Z1R flagsets fill that exact region with
@@ -12,7 +12,7 @@ JMP/JSR/abs operand and relative branch, fixes the dispatcher's jump table,
 and updates the four external hooks (bank value + three JMP/JSR targets) so
 the relocated patch behaves identically to the original.
 
-Output: overwrites bridge/bridge_core/patches/zelda_emu_coop_plus.ips with
+Output: overwrites bridge/bridge_core/patches/zelda_z1rr_coop.ips with
 the relocated IPS so subsequent .exe/zip builds pick up the new patch.
 
 Usage:
@@ -322,7 +322,7 @@ def main() -> None:
     vanilla = Path(args.vanilla).read_bytes()
     if len(vanilla) != 131088:
         print(f"WARN: expected 131088-byte iNES; got {len(vanilla)}")
-    patch_path = Path("bridge_core/patches/zelda_emu_coop_plus.ips")
+    patch_path = Path("bridge_core/patches/zelda_z1rr_coop.ips")
     old_ips = patch_path.read_bytes()
     print(f"# Old IPS: {patch_path} ({len(old_ips)} bytes)")
 
@@ -518,7 +518,7 @@ def main() -> None:
                   "between PRG0 and PRG1 vanilla (single IPS supports both).")
 
     manifest = {
-        "patch_name": "emu-coop-plus",
+        "patch_name": "z1rr-coop",
         "ips": patch_path.name,
         "vanilla_sha1": VANILLA_SHA1S,
         "expected": {

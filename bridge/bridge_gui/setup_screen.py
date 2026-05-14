@@ -1,4 +1,4 @@
-"""ROM Setup screen: pick a ROM, apply emu-coop-plus patch, optionally upload to EDN8."""
+"""ROM Setup screen: pick a ROM, apply z1rr-coop patch, optionally upload to EDN8."""
 from __future__ import annotations
 
 import json
@@ -24,7 +24,7 @@ from bridge_gui.device_flow import (
 
 
 # Where to copy the patched ROM on the EDN8 SD card (auto-created by edlink-n8)
-EDN8_TARGET_DIR = "sd:\\emu-coop-plus\\"
+EDN8_TARGET_DIR = "sd:\\z1rr-coop\\"
 
 
 class ROMSetupScreen(ctk.CTkScrollableFrame):
@@ -47,7 +47,7 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
         self._intro_label = ctk.CTkLabel(
             self,
             text="Choose your Z1 ROM (vanilla or Z1R seed).\n"
-                 "We'll apply the emu-coop-plus patch if it's not already patched.",
+                 "We'll apply the z1rr-coop patch if it's not already patched.",
             justify="center",
         )
         self._intro_label.pack(pady=(0, 20))
@@ -297,7 +297,7 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
             # the EDN8 menu manually. Passing the .nes path as the command itself
             # triggers edlink's cmd_loadApp -> usb.appStart() path which uploads
             # to usb-games and boots the ROM. Yes, this is a second upload (the
-            # -cp above keeps a permanent copy in emu-coop-plus/), but the ROM is
+            # -cp above keeps a permanent copy in z1rr-coop/), but the ROM is
             # ~128 KB so the extra USB time is negligible compared to the UX win.
             launch_result = subprocess.run(
                 [str(edlink), str(file_path)],
@@ -347,7 +347,7 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
         self._intro_label.configure(
             text=(
                 "Choose your Z1 ROM (vanilla or Z1R seed).\n"
-                "We'll apply the emu-coop-plus patch if it's not already patched."
+                "We'll apply the z1rr-coop patch if it's not already patched."
             )
         )
         self._mister_frame.pack_forget()
@@ -528,10 +528,10 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
 
     @staticmethod
     def _load_patch() -> bytes:
-        path = files("bridge_core").joinpath("patches/zelda_emu_coop_plus.ips")
+        path = files("bridge_core").joinpath("patches/zelda_z1rr_coop.ips")
         return path.read_bytes()
 
     @staticmethod
     def _load_manifest() -> bytes:
-        path = files("bridge_core").joinpath("patches/zelda_emu_coop_plus.expected.json")
+        path = files("bridge_core").joinpath("patches/zelda_z1rr_coop.expected.json")
         return path.read_bytes()

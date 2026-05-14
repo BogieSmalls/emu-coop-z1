@@ -1,18 +1,18 @@
 {
   "helper": {
     "filename": "mister-helper.py",
-    "version": "2.0 beta5",
-    "remote_path": "/media/fat/Scripts/emu-coop/mister-helper.py",
-    "log_path": "/media/fat/Scripts/emu-coop/mister-helper.log",
+    "version": "2.0 beta6",
+    "remote_path": "/media/fat/Scripts/z1rr-coop/mister-helper.py",
+    "log_path": "/media/fat/Scripts/z1rr-coop/mister-helper.log",
     "port": 55355
   },
   "roms": {
-    "remote_dir": "/media/fat/games/NES/emu-coop-plus"
+    "remote_dir": "/media/fat/games/NES/z1rr-coop"
   },
   "core": {
-    "filename": "NES_emu-coop.rbf",
-    "version": "2.0 beta5",
-    "remote_path": "/media/fat/_Console/NES_emu-coop.rbf",
+    "filename": "NES_z1rr-coop.rbf",
+    "version": "2.0 beta6",
+    "remote_path": "/media/fat/_Console/NES_z1rr-coop.rbf",
     "required": true
   }
 }

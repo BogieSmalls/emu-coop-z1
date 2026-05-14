@@ -1,6 +1,6 @@
-# emu-coop-plus v2.0 beta 5 - release notes
+# z1rr-coop v2.0 beta 6 - release notes
 
-Fifth community-testing build of the emu-coop-plus bridge. Beta5 focuses on EDN8 `tloz_all` safety, FCEUX package bitness, hardware bridge version reporting, and smoother MiSTer setup.
+Sixth community-testing build of the z1rr-coop bridge. Beta6 moves packaged clients to the stable public relay hostname, so future relay IP changes do not require another client rebuild.
 
 This is a pre-release. Keep bridge logs handy while validating hardware sessions, especially EDN8 `tloz_all`.
 
@@ -8,11 +8,16 @@ This is a pre-release. Keep bridge logs handy while validating hardware sessions
 
 | You play on... | Download | Size |
 |---|---|---|
-| **Hardware bridge: EDN8 or MiSTer** | `emu-coop-plus-2.0-beta5-hardware.exe` | ~19 MB |
-| **32-bit FCEUX** | `emu-coop-plus-2.0-beta5-fceux-win32.zip` | ~540 KB |
-| **64-bit FCEUX** | `emu-coop-plus-2.0-beta5-fceux-win64.zip` | ~1.3 MB |
+| **Hardware bridge: EDN8 or MiSTer** | `z1rr-coop-2.0-beta6-hardware.exe` | ~19 MB |
+| **32-bit FCEUX** | `z1rr-coop-2.0-beta6-fceux-win32.zip` | ~540 KB |
+| **64-bit FCEUX** | `z1rr-coop-2.0-beta6-fceux-win64.zip` | ~1.3 MB |
 
 Any two endpoints can be paired together: FCEUX, EDN8, or MiSTer. FCEUX <-> FCEUX, FCEUX <-> EDN8, FCEUX <-> MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, and MiSTer <-> MiSTer all use the same shared cloud relay and pair by an agreed-on session code.
+
+## What's new in v2.0 beta 6
+
+- **Stable relay hostname.** FCEUX fallback config, the FCEUX connection dialog, the hardware bridge GUI, and bridge CLI defaults now use `coop.z1rracing.com:9999` instead of a raw OCI IP address.
+- **Relay DNS target updated.** `coop.z1rracing.com` currently points at reserved IPv4 `157.151.194.113`; packaged clients should keep using the hostname.
 
 ## What's new in v2.0 beta 5
 
@@ -22,15 +27,15 @@ Any two endpoints can be paired together: FCEUX, EDN8, or MiSTer. FCEUX <-> FCEU
 - **Startup noise cleanup.** Initial bomb-capacity deltas are suppressed so starting a seed does not announce misleading "got rid of bombs" / "bomb upgrade" messages.
 - **Separate FCEUX packages.** 32-bit and 64-bit FCEUX now have separate zips with matching native IUP/IUPLua/LuaSocket modules.
 - **64-bit FCEUX config fallback.** If a 64-bit FCEUX build cannot open the IUP dialog from Lua, `coop_config.lua` can provide relay/session settings directly. The fallback config ships disabled, with the Zelda 1 "sync most things" mode line ready to edit.
-- **Hardware version reporting.** Hardware app hellos now report the release version (`2.0 beta5`) instead of the internal package version.
+- **Hardware version reporting.** Hardware app hellos now report the release version instead of the internal package version.
 - **MiSTer setup polish.** The hardware setup window opens taller and the MiSTer flow is scrollable so the Continue button remains reachable.
 - **Hardware app icon.** The Windows hardware bridge now uses the Gannon "shyboi" icon.
 - **Relay diagnostics.** Relay payload tracing remains available for beta validation and makes sender/receiver behavior visible in `journalctl`.
 
 ## What's new in v2.0 beta 4
 
-- **MiSTer hardware bridge support.** The bridge added a device choice screen, MiSTer SSH setup, ROM staging under `/media/fat/games/NES/emu-coop-plus/`, and helper/core deployment.
-- **Two-way MiSTer sync.** The MiSTer path uses the bundled `NES_emu-coop.rbf` core plus `mister-helper.py` to read/write game memory through the same sync engine and relay protocol used by FCEUX and EDN8.
+- **MiSTer hardware bridge support.** The bridge added a device choice screen, MiSTer SSH setup, ROM staging under `/media/fat/games/NES/z1rr-coop/`, and helper/core deployment.
+- **Two-way MiSTer sync.** The MiSTer path uses the bundled `NES_z1rr-coop.rbf` core plus `mister-helper.py` to read/write game memory through the same sync engine and relay protocol used by FCEUX and EDN8.
 - **Generic release layout.** Emulator builds now land in `dist/emu/` and the bridge app lands in `dist/hardware/`.
 
 ## What's new in v2.0 beta 3
@@ -47,11 +52,11 @@ Any two endpoints can be paired together: FCEUX, EDN8, or MiSTer. FCEUX <-> FCEU
 
 ### Hardware bridge
 
-A standalone Windows app that lets hardware endpoints play emu-coop through the shared relay. EDN8 and MiSTer are supported in beta5, and either can pair with FCEUX or another hardware bridge endpoint. Works with vanilla Z1, Z1R seeds, or any Z1-derived ROM.
+A standalone Windows app that lets hardware endpoints play emu-coop through the shared relay. EDN8 and MiSTer are supported in beta6, and either can pair with FCEUX or another hardware bridge endpoint. Works with vanilla Z1, Z1R seeds, or any Z1-derived ROM.
 
 - Choose EDN8 or MiSTer from the first screen.
-- EDN8 flow patches the ROM and uploads it to `sd:\emu-coop-plus\`.
-- MiSTer flow deploys `NES_emu-coop.rbf` and `mister-helper.py` over SSH/SCP, then stages ROMs under `/media/fat/games/NES/emu-coop-plus/`.
+- EDN8 flow patches the ROM and uploads it to `sd:\z1rr-coop\`.
+- MiSTer flow deploys `NES_z1rr-coop.rbf` and `mister-helper.py` over SSH/SCP, then stages ROMs under `/media/fat/games/NES/z1rr-coop/`.
 - Talks to the same OCI relay as FCEUX and pairs by session code, so endpoint combinations are interchangeable as long as both clients choose the same mode.
 - Auto-reconnects on network drops on both sides.
 
@@ -73,24 +78,24 @@ Pick the mode that matches the workload you want; both peers must use the same m
 
 ### Hardware bridge players
 
-1. Download `emu-coop-plus-2.0-beta5-hardware.exe`.
+1. Download `z1rr-coop-2.0-beta6-hardware.exe`.
 2. For EDN8, plug your EDN8 into your PC over USB and into your NES, then power on the NES. For MiSTer, make sure SSH is enabled and the MiSTer is reachable on your network.
 3. Run the .exe. The flow walks you through hardware choice, ROM setup, relay connection, and pairing.
-4. For EDN8, launch the patched ROM from the `emu-coop-plus` folder on the cart menu. For MiSTer, launch the deployed `NES_emu-coop` core and staged ROM.
+4. For EDN8, launch the patched ROM from the `z1rr-coop` folder on the cart menu. For MiSTer, launch the deployed `NES_z1rr-coop` core and staged ROM.
 5. Agree on a session code with your partner, enter it in both clients, and play.
 
 ### FCEUX players
 
-1. Download the FCEUX zip that matches your emulator bitness: `emu-coop-plus-2.0-beta5-fceux-win32.zip` for 32-bit FCEUX, or `emu-coop-plus-2.0-beta5-fceux-win64.zip` for 64-bit FCEUX.
+1. Download the FCEUX zip that matches your emulator bitness: `z1rr-coop-2.0-beta6-fceux-win32.zip` for 32-bit FCEUX, or `z1rr-coop-2.0-beta6-fceux-win64.zip` for 64-bit FCEUX.
 2. Extract the zip anywhere.
 3. Launch FCEUX and load your Z1 ROM.
 4. From the FCEUX Lua menu, load `coop.lua` from the extracted folder.
-5. In the connection dialog: Transport=Relay, Host=`129.158.62.225`, Port=`9999`, Session code=your shared code, Mode=`tloz_basic` / `tloz_progress` / `tloz_all`.
+5. In the connection dialog: Transport=Relay, Host=`coop.z1rracing.com`, Port=`9999`, Session code=your shared code, Mode=`tloz_basic` / `tloz_progress` / `tloz_all`.
 6. Click OK and play.
 
 If your FCEUX build cannot open the dialog and reports `Must call iup.Open in main thread`, edit `coop_config.lua` next to `coop.lua`, set `enabled = true`, enter the shared session code, confirm the `mode` line, save, and reload `coop.lua`.
 
-The FCEUX side has additional modes (`lttp`, `lttp_randomizer`, `super_metroid`, plus `tloz_basic_alt`, `tloz_all_alt_hdn`, etc.) that the bridge does not host yet. Those still work for FCEUX-to-FCEUX play.
+Beta6 intentionally ships only the Zelda 1 modes listed above. Older emulator-only modes are no longer included in the packaged client.
 
 ## Known issues
 
@@ -102,7 +107,7 @@ The FCEUX side has additional modes (`lttp`, `lttp_randomizer`, `super_metroid`,
 
 ## Reporting issues
 
-GitHub issues: <https://github.com/BogieSmalls/emu-coop-z1/issues>
+GitHub issues: <https://github.com/BogieSmalls/z1rr-coop/issues>
 
 When reporting, include which artifact you used, what mode you were running, what the bridge log and FCEUX console showed, and what you were doing when the issue happened.
 
@@ -110,6 +115,6 @@ When reporting, include which artifact you used, what mode you were running, wha
 
 - **Andi McClure** - original emu-coop framework
 - **megmacAttack** - the `tloz_*` Z1 mode files
-- **Bogie** - emu-coop-plus EDN8/MiSTer bridge, relay deployment, DIBS! competitive modes
+- **Bogie** - z1rr-coop EDN8/MiSTer bridge, relay deployment, DIBS! competitive modes
 - **Warp World** - Crowd Control project, related upstream work in the NES hardware space
 - **odelot** - NES_MiSTer fork that opened the path for MiSTer support

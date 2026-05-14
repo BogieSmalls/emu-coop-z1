@@ -2,7 +2,7 @@
 
 Usage:
   python -m bridge_cli run --mode tloz_all --port COM3 --code mycode \
-                            [--relay 129.158.62.225] [--relay-port 9999]
+                            [--relay coop.z1rracing.com] [--relay-port 9999]
                             [--force-send]
   python -m bridge_cli patch <input.nes> -o <output.nes>
   python -m bridge_cli read --port COM3 --addr 0x0657 --length 16
@@ -48,14 +48,15 @@ from bridge_core.mister_smartcache import MisterSmartCacheMemoryEndpoint
 
 POLL_HZ = 10
 POLL_PERIOD = 1.0 / POLL_HZ
+DEFAULT_RELAY = "coop.z1rracing.com"
 
 
 def cmd_patch(args: argparse.Namespace) -> int:
     src = Path(args.input).read_bytes()
     patches_dir = Path(__file__).parent.parent / "bridge_core" / "patches"
-    patch_bytes = (patches_dir / "zelda_emu_coop_plus.ips").read_bytes()
+    patch_bytes = (patches_dir / "zelda_z1rr_coop.ips").read_bytes()
     expected = ips.load_expected_manifest(
-        (patches_dir / "zelda_emu_coop_plus.expected.json").read_bytes()
+        (patches_dir / "zelda_z1rr_coop.expected.json").read_bytes()
     )
     if ips.is_patched(src, patch_bytes):
         print(f"Already patched: {args.input}")
@@ -67,7 +68,7 @@ def cmd_patch(args: argparse.Namespace) -> int:
     except ips.RomConflict as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         print(
-            "This ROM has been modified at offsets where emu-coop-plus needs to "
+            "This ROM has been modified at offsets where z1rr-coop needs to "
             "write. If this is a randomizer seed, please report the flagstring "
             "so we can audit.",
             file=sys.stderr,
@@ -447,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
     p_mister_run.add_argument("--mister-port", type=int, default=55355)
     p_mister_run.add_argument("--mister-timeout", type=float, default=1.0)
     p_mister_run.add_argument("--code", required=True, help="Session code (6+ chars)")
-    p_mister_run.add_argument("--relay", default="129.158.62.225")
+    p_mister_run.add_argument("--relay", default=DEFAULT_RELAY)
     p_mister_run.add_argument("--relay-port", type=int, default=9999)
     p_mister_run.add_argument("--poll-hz", type=int, default=POLL_HZ)
     p_mister_run.add_argument(
@@ -467,7 +468,7 @@ def main(argv: list[str] | None = None) -> int:
     p_mister_deploy.add_argument("--timeout-s", type=float, default=8.0)
     p_mister_deploy.add_argument(
         "--rom",
-        help="Optional Zelda 1 source ROM to stage under /media/fat/games/NES/emu-coop-plus",
+        help="Optional Zelda 1 source ROM to stage under /media/fat/games/NES/z1rr-coop",
     )
 
     p_run = sub.add_parser("run", help="Run the bridge: connect to relay and sync game state")
@@ -475,7 +476,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--port", required=True, help="Serial port (e.g. COM3)")
     p_run.add_argument("--baud", type=int, default=115200)
     p_run.add_argument("--code", required=True, help="Session code (6+ chars)")
-    p_run.add_argument("--relay", default="129.158.62.225")
+    p_run.add_argument("--relay", default=DEFAULT_RELAY)
     p_run.add_argument("--relay-port", type=int, default=9999)
     p_run.add_argument("--force-send", action="store_true")
 

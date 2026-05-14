@@ -10,8 +10,8 @@ from typing import Any
 def default_settings_path() -> Path:
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
-        return Path(local_app_data) / "emu-coop-plus" / "bridge-settings.json"
-    return Path.home() / ".emu-coop-plus" / "bridge-settings.json"
+        return Path(local_app_data) / "z1rr-coop" / "bridge-settings.json"
+    return Path.home() / ".z1rr-coop" / "bridge-settings.json"
 
 
 @dataclass

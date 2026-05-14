@@ -127,7 +127,7 @@ class MisterDeployService:
         helper_dir = shlex.quote(posixpath.dirname(remote_helper_path))
         log_path = shlex.quote(posixpath.join(posixpath.dirname(remote_helper_path), "mister-helper.log"))
         command = (
-            "pkill -f 'emu-coop.*mister-helper.py' || true; "
+            "pkill -f 'z1rr-coop.*mister-helper.py' || true; "
             f"mkdir -p {helper_dir}; "
             f"nohup python3 {helper} --enable-writes --host 0.0.0.0 --port {int(port)} "
             f">{log_path} 2>&1 &"
@@ -170,10 +170,10 @@ class MisterDeployService:
             "python3 - <<'PY'\n"
             "import base64\n"
             f"data = {encoded!r}\n"
-            "open('/tmp/emucoop_upload.b64', 'w').write(data)\n"
+            "open('/tmp/z1rrcoop_upload.b64', 'w').write(data)\n"
             "PY\n"
-            f"cat /tmp/emucoop_upload.b64 | base64 -d > {shlex.quote(remote_path)}; "
-            "rm -f /tmp/emucoop_upload.b64"
+            f"cat /tmp/z1rrcoop_upload.b64 | base64 -d > {shlex.quote(remote_path)}; "
+            "rm -f /tmp/z1rrcoop_upload.b64"
         )
         rc, _out, err = self.run(command)
         if rc != 0:

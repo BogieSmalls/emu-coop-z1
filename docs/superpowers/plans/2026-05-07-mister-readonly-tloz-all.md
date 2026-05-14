@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first MiSTer-facing emu-coop-plus milestone: `tloz_all` can run through the Python bridge against a generic memory endpoint, with a read-only MiSTer endpoint able to produce outgoing sync frames.
+**Goal:** Build the first MiSTer-facing z1rr-coop milestone: `tloz_all` can run through the Python bridge against a generic memory endpoint, with a read-only MiSTer endpoint able to produce outgoing sync frames.
 
 **Architecture:** Decouple `SyncEngine` and the session loops from `CCClient` by introducing a small `MemoryEndpoint` interface. Keep EDN8 behavior working through a `CCMemoryEndpoint` adapter, then add a read-only MiSTer memory endpoint scaffold and a diagnostic/sender path that feeds `tloz_all` snapshots into the existing sync engine.
 

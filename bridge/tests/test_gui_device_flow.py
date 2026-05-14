@@ -26,7 +26,7 @@ def test_unknown_device_selection_is_rejected():
 def test_mister_setup_config_uses_defaults_and_remembered_host():
     config = build_mister_rom_setup_config(
         rom_path="zelda.nes",
-        remote_rom_path="/media/fat/games/NES/emu-coop-plus/zelda.nes",
+        remote_rom_path="/media/fat/games/NES/z1rr-coop/zelda.nes",
         host=" 192.168.1.50 ",
         username="",
         password="",
@@ -35,7 +35,7 @@ def test_mister_setup_config_uses_defaults_and_remembered_host():
     assert config == {
         "endpoint_type": "mister",
         "rom_path": "zelda.nes",
-        "mister_remote_rom_path": "/media/fat/games/NES/emu-coop-plus/zelda.nes",
+        "mister_remote_rom_path": "/media/fat/games/NES/z1rr-coop/zelda.nes",
         "mister_host": "192.168.1.50",
         "mister_username": "root",
         "mister_password": "1",
@@ -47,7 +47,7 @@ def test_mister_setup_config_uses_defaults_and_remembered_host():
 def test_mister_setup_config_keeps_custom_credentials():
     config = build_mister_rom_setup_config(
         rom_path=Path("zelda.nes"),
-        remote_rom_path="/media/fat/games/NES/emu-coop-plus/zelda.nes",
+        remote_rom_path="/media/fat/games/NES/z1rr-coop/zelda.nes",
         host="mister.local",
         username="admin",
         password="secret",
@@ -85,7 +85,7 @@ def test_mister_relay_config_omits_com_port_and_keeps_helper_host():
     mister_config = {
         "endpoint_type": "mister",
         "rom_path": "zelda.nes",
-        "mister_remote_rom_path": "/media/fat/games/NES/emu-coop-plus/zelda.nes",
+        "mister_remote_rom_path": "/media/fat/games/NES/z1rr-coop/zelda.nes",
         "mister_host": "192.168.1.50",
         "mister_port": 55355,
         "enable_writes": True,

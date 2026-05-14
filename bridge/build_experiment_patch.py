@@ -135,7 +135,7 @@ def experiment_h2_save_regs(rom: bytearray) -> list[tuple[int, bytes, bytes]]:
 
 
 def experiment_emu_coop_plus_brand(rom: bytearray) -> list[tuple[int, bytes, bytes]]:
-    """Rebrand 'CROWD CONTROL' -> 'EMU-COOP-PLUS' in the patched ROM.
+    """Rebrand 'CROWD CONTROL' -> 'z1rr-coop' in the patched ROM.
 
     Z1 uses tile-graphics text encoding (A=$0A, B=$0B, ..., '-'=$2F, ' '=$24).
     The CC patch wrote 'CROWD CONTROL' at file 0x01AAFC. Both strings are
@@ -143,7 +143,7 @@ def experiment_emu_coop_plus_brand(rom: bytearray) -> list[tuple[int, bytes, byt
 
     Encoded bytes (verified against z1rdecomp/Z1R.Core/Patching/TextUtilities.cs):
         CROWD CONTROL = 0C 1B 18 20 0D 24 0C 18 17 1D 1B 18 15
-        EMU-COOP-PLUS = 0E 16 1E 2F 0C 18 18 19 2F 19 15 1E 1C
+        z1rr-coop = 0E 16 1E 2F 0C 18 18 19 2F 19 15 1E 1C
     """
     file_off = 0x01AAFC
     expected = bytes([0x0C, 0x1B, 0x18, 0x20, 0x0D, 0x24, 0x0C, 0x18, 0x17, 0x1D, 0x1B, 0x18, 0x15])
@@ -169,7 +169,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("orig_rom")
     ap.add_argument("--experiment", required=True, choices=sorted(EXPERIMENTS))
-    ap.add_argument("--base-ips", default="bridge_core/patches/zelda_emu_coop_plus.ips",
+    ap.add_argument("--base-ips", default="bridge_core/patches/zelda_z1rr_coop.ips",
                     help="baseline CC patch to start from")
     ap.add_argument("--out-ips", help="output IPS path (default: <experiment>.ips)")
     ap.add_argument("--out-rom", help="output patched .nes path (default: <experiment>.nes)")
@@ -194,7 +194,7 @@ def main() -> None:
     new_ips_bytes = make_ips(orig, bytes(rom))
     default_dir = Path("dist") / args.experiment
     default_dir.mkdir(parents=True, exist_ok=True)
-    out_ips = Path(args.out_ips or default_dir / "zelda_emu_coop_plus.ips")
+    out_ips = Path(args.out_ips or default_dir / "zelda_z1rr_coop.ips")
     out_rom = Path(args.out_rom or default_dir / "zelda_cc.nes")
     out_ips.write_bytes(new_ips_bytes)
     out_rom.write_bytes(bytes(rom))

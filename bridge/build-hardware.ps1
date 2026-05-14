@@ -5,7 +5,7 @@
 #
 # Usage: powershell -ExecutionPolicy Bypass -File .\build-hardware.ps1
 #
-# Output: ..\dist\hardware\emu-coop-plus-<version>-hardware.exe
+# Output: ..\dist\hardware\z1rr-coop-<version>-hardware.exe
 
 $ErrorActionPreference = "Stop"
 Push-Location $PSScriptRoot
@@ -38,7 +38,7 @@ if (-not (Test-Path $built)) {
 # bridge\dist\bridge.exe available for quick local GUI testing.
 $endpointDist = Join-Path $repoRoot "dist\hardware"
 New-Item -ItemType Directory -Path $endpointDist -Force | Out-Null
-$finalName = "emu-coop-plus-$version-hardware.exe"
+$finalName = "z1rr-coop-$version-hardware.exe"
 $finalPath = Join-Path $endpointDist $finalName
 if (Test-Path $finalPath) { Remove-Item -Force $finalPath }
 Copy-Item -Path $built -Destination $finalPath

@@ -2,6 +2,8 @@
 
 Small Python asyncio TCP server that pairs emu-coop peers by session code and forwards frames between them. Stateless across restarts.
 
+The public Z1R relay hostname is `coop.z1rracing.com:9999`. DNS currently points that hostname at reserved IPv4 `157.151.194.113`; clients should use the hostname so future IP changes do not require new client builds.
+
 ## Architecture
 
 The relay is the matchmaking + forwarding component for emu-coop's `RelayPipe` transport. Each peer connects outbound to the relay, sends a `join` frame with a shared session code and a per-launch peer-id, and the relay pairs the first two peers using the same code. After pairing, the relay forwards bytes between peers. During the 2.0 beta, diagnostic wire logging is enabled by default so we can inspect forwarded JSON frames when clients crash.
@@ -63,7 +65,7 @@ sudo iptables -I INPUT 1 -p tcp --dport 9999 -j ACCEPT
 sudo netfilter-persistent save
 ```
 
-Verify from your laptop: `nc -zv <vm-public-ip> 9999` should report "succeeded". (Or use `Test-NetConnection -ComputerName <vm-public-ip> -Port 9999` from PowerShell.)
+Verify from your laptop: `nc -zv <vm-public-ip> 9999` should report "succeeded". For the public relay, `nc -zv coop.z1rracing.com 9999` should also succeed. Or use `Test-NetConnection -ComputerName coop.z1rracing.com -Port 9999` from PowerShell.
 
 ### 3. Install the relay on the VM
 
@@ -72,21 +74,21 @@ ssh ubuntu@<vm-public-ip>
 
 sudo apt update && sudo apt install -y python3.11 python3.11-venv git
 sudo useradd -r -s /usr/sbin/nologin relay
-sudo mkdir /opt/emu-coop-relay && sudo chown relay:relay /opt/emu-coop-relay
+sudo mkdir /opt/z1rr-coop-relay && sudo chown relay:relay /opt/z1rr-coop-relay
 
 # Clone the repo (or scp just the relay/ directory)
-sudo -u relay git clone https://github.com/BogieSmalls/emu-coop-z1.git /tmp/emu-coop-z1
-sudo -u relay cp -r /tmp/emu-coop-z1/relay/* /opt/emu-coop-relay/
+sudo -u relay git clone https://github.com/BogieSmalls/z1rr-coop.git /tmp/z1rr-coop
+sudo -u relay cp -r /tmp/z1rr-coop/relay/* /opt/z1rr-coop-relay/
 
 # Create venv and install
-sudo -u relay python3.11 -m venv /opt/emu-coop-relay/.venv
-sudo -u relay /opt/emu-coop-relay/.venv/bin/pip install -e /opt/emu-coop-relay
+sudo -u relay python3.11 -m venv /opt/z1rr-coop-relay/.venv
+sudo -u relay /opt/z1rr-coop-relay/.venv/bin/pip install -e /opt/z1rr-coop-relay
 ```
 
 ### 4. Install the systemd unit
 
 ```bash
-sudo cp /opt/emu-coop-relay/deploy/relay.service /etc/systemd/system/
+sudo cp /opt/z1rr-coop-relay/deploy/relay.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now relay
 sudo systemctl status relay
@@ -100,7 +102,7 @@ You should see `relay listening on 0.0.0.0:9999` in the journal.
 In FCEUX with `coop.lua`, fill in the connection dialog:
 
 - Transport: Relay
-- Host address: `<vm-public-ip>`
+- Host address: `coop.z1rracing.com` for the public relay, or `<vm-public-ip>` for a self-hosted relay
 - Port: `9999`
 - Session code: any 6+ char string you and your partner agree on out-of-band
 
@@ -109,9 +111,9 @@ Both peers should pair within ~1 second. If they don't pair: check the relay's j
 ### 6. Updating the relay
 
 ```bash
-sudo -u relay git -C /tmp/emu-coop-z1 pull
-sudo -u relay cp -r /tmp/emu-coop-z1/relay/* /opt/emu-coop-relay/
-sudo -u relay /opt/emu-coop-relay/.venv/bin/pip install -e /opt/emu-coop-relay
+sudo -u relay git -C /tmp/z1rr-coop pull
+sudo -u relay cp -r /tmp/z1rr-coop/relay/* /opt/z1rr-coop-relay/
+sudo -u relay /opt/z1rr-coop-relay/.venv/bin/pip install -e /opt/z1rr-coop-relay
 sudo systemctl restart relay
 ```
 

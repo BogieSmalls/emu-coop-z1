@@ -1,10 +1,7 @@
--- Did you add any files to this directory? Add their names to the table below.
--- If your file is named "lttp.lua", put it in the table like "modes.lttp".
+-- Did you add any Zelda 1 mode files to this directory? Add their names to the
+-- table below.
 
 modes = {
-	require "modes.lttp",
-	require "modes.lttp_randomizer",
-	require "modes.super_metroid",
 	require "modes.tloz_all",
 	require "modes.tloz_progress",
 	require "modes.tloz_basic",

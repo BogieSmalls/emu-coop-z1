@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an end-to-end MiSTer proof of concept where emu-coop-plus reads NES RAM from odelot's RA mirror and applies incoming `WritePairs` through a tiny DDRAM mailbox handled by a custom NES core.
+**Goal:** Build an end-to-end MiSTer proof of concept where z1rr-coop reads NES RAM from odelot's RA mirror and applies incoming `WritePairs` through a tiny DDRAM mailbox handled by a custom NES core.
 
 **Architecture:** Keep the PC bridge and relay runner generic. The MiSTer helper runs on MiSTer, mmaps odelot's RA DDRAM region, serves reads from the existing mirror, and writes request batches into a new ARM-to-FPGA mailbox. The NES core polls that mailbox and applies CPU-RAM writes through the existing SDRAM channel-2 arbiter.
 

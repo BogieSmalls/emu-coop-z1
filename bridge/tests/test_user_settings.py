@@ -55,5 +55,5 @@ def test_default_settings_path_uses_localappdata(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
 
     assert default_settings_path() == (
-        tmp_path / "emu-coop-plus" / "bridge-settings.json"
+        tmp_path / "z1rr-coop" / "bridge-settings.json"
     )

@@ -1,6 +1,6 @@
 {
-  "patch_name": "emu-coop-plus",
-  "ips": "zelda_emu_coop_plus.ips",
+  "patch_name": "z1rr-coop",
+  "ips": "zelda_z1rr_coop.ips",
   "vanilla_sha1": {
     "prg0": "dab79c84934f9aa5db4e7dad390e5d0c12443fa2",
     "prg1": "3701381a82fc7d52b2dd3e8892047b30a114ab43"

@@ -110,11 +110,11 @@ def test_upload_skips_remote_file_when_hash_matches(tmp_path: Path):
     digest = service.local_sha256(local)
     client.responses = [
         (0, "exists\n", ""),
-        (0, f"{digest}  /media/fat/Scripts/emu-coop/mister-helper.py\n", ""),
+        (0, f"{digest}  /media/fat/Scripts/z1rr-coop/mister-helper.py\n", ""),
     ]
 
     uploaded = service.ensure_file(
-        DeployAsset(local, "/media/fat/Scripts/emu-coop/mister-helper.py")
+        DeployAsset(local, "/media/fat/Scripts/z1rr-coop/mister-helper.py")
     )
 
     assert uploaded is False
@@ -133,13 +133,13 @@ def test_uploads_remote_file_when_missing_or_hash_differs(tmp_path: Path):
     ]
 
     uploaded = service.ensure_file(
-        DeployAsset(local, "/media/fat/Scripts/emu-coop/mister-helper.py")
+        DeployAsset(local, "/media/fat/Scripts/z1rr-coop/mister-helper.py")
     )
 
     assert uploaded is True
-    assert any("mkdir -p /media/fat/Scripts/emu-coop" in cmd for cmd, _ in client.commands)
+    assert any("mkdir -p /media/fat/Scripts/z1rr-coop" in cmd for cmd, _ in client.commands)
     assert client.sftp.puts == [
-        (str(local), "/media/fat/Scripts/emu-coop/mister-helper.py")
+        (str(local), "/media/fat/Scripts/z1rr-coop/mister-helper.py")
     ]
 
 
@@ -151,11 +151,11 @@ def test_restart_helper_uses_nohup_and_existing_helper_port():
         (0, "ready\n", ""),
     ]
 
-    service.restart_helper("/media/fat/Scripts/emu-coop/mister-helper.py", port=55355)
+    service.restart_helper("/media/fat/Scripts/z1rr-coop/mister-helper.py", port=55355)
 
     commands = [cmd for cmd, _ in client.commands]
-    assert "pkill -f 'emu-coop.*mister-helper.py' || true" in commands[0]
-    assert "nohup python3 /media/fat/Scripts/emu-coop/mister-helper.py" in commands[0]
+    assert "pkill -f 'z1rr-coop.*mister-helper.py' || true" in commands[0]
+    assert "nohup python3 /media/fat/Scripts/z1rr-coop/mister-helper.py" in commands[0]
     assert "--port 55355" in commands[0]
     assert "nc -z 127.0.0.1 55355" in commands[1]
 
@@ -173,12 +173,12 @@ def test_sftp_fallback_uploads_with_base64_cat_when_open_sftp_fails(tmp_path: Pa
     ]
 
     uploaded = service.ensure_file(
-        DeployAsset(local, "/media/fat/Scripts/emu-coop/mister-helper.py")
+        DeployAsset(local, "/media/fat/Scripts/z1rr-coop/mister-helper.py")
     )
 
     assert uploaded is True
     commands = [cmd for cmd, _ in client.commands]
-    assert any("base64 -d > /media/fat/Scripts/emu-coop/mister-helper.py" in cmd for cmd in commands)
+    assert any("base64 -d > /media/fat/Scripts/z1rr-coop/mister-helper.py" in cmd for cmd in commands)
 
 
 def test_stage_rom_uploads_to_standard_mister_rom_folder(tmp_path: Path):
@@ -192,7 +192,7 @@ def test_stage_rom_uploads_to_standard_mister_rom_folder(tmp_path: Path):
         (0, "", ""),
     ]
 
-    remote_path = service.stage_rom(rom, "/media/fat/games/NES/emu-coop-plus")
+    remote_path = service.stage_rom(rom, "/media/fat/games/NES/z1rr-coop")
 
-    assert remote_path == "/media/fat/games/NES/emu-coop-plus/zelda.nes"
+    assert remote_path == "/media/fat/games/NES/z1rr-coop/zelda.nes"
     assert client.sftp.puts == [(str(rom), remote_path)]

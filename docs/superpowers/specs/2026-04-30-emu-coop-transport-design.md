@@ -94,7 +94,7 @@ Single integer `v` in `hello`. Bump on any wire-format-breaking change. Today: `
 ### Lua side
 
 ```
-emu-coop-z1/
+z1rr-coop/
 ├── coop.lua              modified — pipe instantiation switches on dialog choice
 ├── debug.lua             unchanged
 ├── dialog.lua            modified — new UI: pick Direct/Relay, gather config
