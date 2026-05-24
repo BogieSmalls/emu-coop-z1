@@ -116,12 +116,15 @@ class SyncEngine:
         mode: Any,
         map_write_gate: MapWriteGate | None = None,
         running_pause_threshold: int = 30,
+        resync_send_limit: int | None = None,
     ) -> None:
         self.endpoint = endpoint
         self.mode = mode
         self.map_write_gate = map_write_gate
         self.running_pause_threshold = running_pause_threshold
+        self.resync_send_limit = resync_send_limit
         self._not_running_ticks = 0
+        self._resync_send_queue: list[tuple[int, int]] = []
         self.cache: dict[int, int] = {}
         self.did_cache = False
         self.force_send = False
@@ -170,6 +173,11 @@ class SyncEngine:
             ):
                 to_send.append((addr, value))
         self.did_cache = True
+        if self.force_send and self.resync_send_limit is not None:
+            self._resync_send_queue.extend(to_send)
+            return self.drain_resync_send_queue()
+        if self.force_send:
+            self.force_send = False
         return to_send
 
     def diff(self, snapshot: dict[int, int]) -> list[tuple[int, int, str | None]]:
@@ -297,6 +305,29 @@ class SyncEngine:
             _bypass_map_write_gate=True,
         )
 
+    @property
+    def map_write_pending_count(self) -> int:
+        if self.map_write_gate is None:
+            return 0
+        return self.map_write_gate.pending_count
+
+    @property
+    def resync_send_pending_count(self) -> int:
+        return len(self._resync_send_queue)
+
+    def drain_resync_send_queue(self) -> list[tuple[int, int]]:
+        if not self._resync_send_queue:
+            self.force_send = False
+            return []
+        limit = self.resync_send_limit
+        if limit is None or limit <= 0:
+            limit = len(self._resync_send_queue)
+        chunk = self._resync_send_queue[:limit]
+        del self._resync_send_queue[:limit]
+        if not self._resync_send_queue:
+            self.force_send = False
+        return chunk
+
     def drain_sleep_queue(self) -> list[str]:
         queued = self.sleep_queue
         self.sleep_queue = []
@@ -308,6 +339,7 @@ class SyncEngine:
     def resync(self) -> None:
         """Clear cache and arm force_send so the next running tick re-broadcasts state."""
         self.cache.clear()
+        self._resync_send_queue.clear()
         self.did_cache = False
         self.force_send = True
         self._not_running_ticks = 0

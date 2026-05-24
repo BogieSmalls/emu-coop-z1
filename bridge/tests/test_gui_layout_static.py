@@ -29,3 +29,12 @@ def test_relay_setup_defaults_to_public_hostname():
     source = (REPO_ROOT / "bridge" / "bridge_gui" / "relay_setup_screen.py").read_text(encoding="utf-8")
 
     assert 'DEFAULT_RELAY = "coop.z1rracing.com"' in source
+
+
+def test_session_screen_has_diagnostics_tab_with_copy_button():
+    source = (REPO_ROOT / "bridge" / "bridge_gui" / "session_screen.py").read_text(encoding="utf-8")
+
+    assert 'self._tabs.add("Diagnostics")' in source
+    assert "self._diagnostics_text" in source
+    assert 'text="Copy Diagnostics"' in source
+    assert "def _copy_diagnostics" in source

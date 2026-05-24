@@ -18,11 +18,20 @@ import serial
 from bridge_core import __version__
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
+from bridge_core.edn8_overload import tloz_all_overload_options
 from bridge_core.map_write_gate import MapWriteGate
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint
 from bridge_core.pipe_client import PipeClient
+from bridge_core.session_diagnostics import SessionDiagnostics
 from bridge_core.sync_engine import SyncEngine
 from bridge_core.sync_probe import endpoint_error, read_running_probe
+
+
+def edn8_overload_options(cfg: dict) -> dict[str, int | bool]:
+    return tloz_all_overload_options(
+        cfg.get("endpoint_type", "edn8"),
+        cfg.get("mode", ""),
+    )
 
 
 class SessionEvent:
@@ -91,21 +100,41 @@ class SessionWorker:
             peer_id = uuid.uuid4().hex
             pipe = PipeClient(socket=sock, code=cfg["code"], peer_id=peer_id)
             pipe._reconnect_enabled = True
+            diagnostics = SessionDiagnostics(
+                endpoint_type=cfg.get("endpoint_type", "edn8"),
+                mode_name=cfg["mode"],
+                com_port=cfg.get("com_port", ""),
+                peer_id=peer_id,
+            )
+            self._emit_diagnostics(diagnostics, force=True)
             map_write_gate = MapWriteGate() if cfg.get("endpoint_type", "edn8") == "edn8" else None
             if map_write_gate is not None:
                 self._emit("log", text="EDN8 map write gate enabled")
-            engine = SyncEngine(endpoint=endpoint, mode=mode, map_write_gate=map_write_gate)
+            overload_options = edn8_overload_options(cfg)
+            if overload_options:
+                self._emit("log", text="EDN8 tloz_all overload protection enabled")
+            defer_full_poll_while_map_pending = bool(
+                overload_options.get("defer_full_poll_while_map_pending", False)
+            )
+            engine = SyncEngine(
+                endpoint=endpoint,
+                mode=mode,
+                map_write_gate=map_write_gate,
+                resync_send_limit=overload_options.get("resync_send_limit"),
+            )
             if cfg.get("force_send"):
                 engine.force_send = True
 
-            pipe.on_data = lambda body: self._on_data(engine, body)
+            pipe.on_data = lambda body: self._on_data(engine, diagnostics, body)
             pipe.on_abort = lambda reason: self._emit("message", text=f"Partner aborted: {reason}")
-            pipe.on_partner_reconnected = lambda: self._on_partner_reconnected(engine)
+            pipe.on_partner_reconnected = lambda: self._on_partner_reconnected(engine, diagnostics)
             pipe.send_join()
             self._emit("net_relay", connected=True)
 
             app_hello_sent = False
             last_state: str | None = None
+            last_map_backlog_log_at = 0.0
+            last_diagnostics_emit_at = 0.0
 
             # Loop until user stops the worker or the pipe is fully closed.
             # We deliberately keep going through FAILED/RECONNECTING so the
@@ -128,6 +157,7 @@ class SessionWorker:
                             sock = new_sock  # so we can close it on shutdown
                         except Exception as e:
                             self._emit("log", text=f"Reconnect attempt failed: {e}")
+                            diagnostics.last_endpoint_error = str(e)
                             # PipeClient already advanced backoff via _next_backoff;
                             # bump _next_retry_at to defer the next try.
                             pipe._next_retry_at = loop_start + pipe._next_backoff()
@@ -137,6 +167,11 @@ class SessionWorker:
 
                 # Surface every state transition to the GUI
                 if pipe.state != last_state:
+                    diagnostics.set_relay_state(
+                        pipe.state,
+                        reconnect_attempt=getattr(pipe, "_reconnect_attempt", 0),
+                    )
+                    self._emit_diagnostics(diagnostics, force=True)
                     self._emit("state", state=pipe.state)
                     if pipe.state == "RECONNECTING":
                         self._emit("message", text="Partner disconnected; reconnecting…")
@@ -158,8 +193,15 @@ class SessionWorker:
                     try:
                         running_probe = read_running_probe(endpoint, mode, timeout_ms=300)
                     except Exception as e:
-                        self._emit("log", text=f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                        error = endpoint_error(e)
+                        diagnostics.record_running_probe(success=False, error=error)
+                        self._emit("log", text=f"Endpoint read failed: {error}", level="ERROR")
                         running_probe = None
+                    else:
+                        diagnostics.record_running_probe(
+                            success=running_probe is not None,
+                            error="running probe timed out" if running_probe is None else None,
+                        )
                     if running_probe is None:
                         full_snapshot = None
                     elif not running_probe:
@@ -170,11 +212,45 @@ class SessionWorker:
                     else:
                         for msg in engine.drain_map_write_gate():
                             self._emit("message", text=msg)
-                        try:
-                            full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
-                        except Exception as e:
-                            self._emit("log", text=f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                        diagnostics.set_backlogs(
+                            map_backlog=engine.map_write_pending_count,
+                            resync_backlog=engine.resync_send_pending_count,
+                        )
+                        if (
+                            defer_full_poll_while_map_pending
+                            and engine.map_write_pending_count > 0
+                        ):
+                            diagnostics.record_deferred_full_poll(
+                                map_backlog=engine.map_write_pending_count,
+                                resync_backlog=engine.resync_send_pending_count,
+                            )
+                            if loop_start - last_map_backlog_log_at >= 1.0:
+                                self._emit(
+                                    "log",
+                                    text=(
+                                        f"EDN8 map backlog {engine.map_write_pending_count}; "
+                                        "throttling full poll"
+                                    ),
+                                )
+                                last_map_backlog_log_at = loop_start
+                            self._send_resync_chunk(engine, pipe, diagnostics)
                             full_snapshot = None
+                        elif engine.resync_send_pending_count > 0:
+                            self._send_resync_chunk(engine, pipe, diagnostics)
+                            full_snapshot = None
+                        else:
+                            try:
+                                full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                            except Exception as e:
+                                error = endpoint_error(e)
+                                diagnostics.record_full_poll(success=False, error=error)
+                                self._emit("log", text=f"Endpoint read failed: {error}", level="ERROR")
+                                full_snapshot = None
+                            else:
+                                diagnostics.record_full_poll(
+                                    success=full_snapshot is not None,
+                                    error="full poll timed out" if full_snapshot is None else None,
+                                )
                     if full_snapshot is not None:
                         invalid_reason = engine.implausible_snapshot_reason(full_snapshot)
                         if invalid_reason:
@@ -192,10 +268,20 @@ class SessionWorker:
                             if not engine.did_cache:
                                 to_send = engine.check_first_running(full_snapshot)
                                 for addr, value in to_send:
+                                    diagnostics.record_outgoing_update(addr, value)
                                     pipe.send_data({"addr": addr, "value": value})
+                                if engine.resync_send_pending_count:
+                                    self._emit(
+                                        "log",
+                                        text=(
+                                            "EDN8 tloz_all resync queued "
+                                            f"{engine.resync_send_pending_count} updates"
+                                        ),
+                                    )
                             for msg in engine.drain_sleep_queue():
                                 self._emit("message", text=msg)
                             for addr, send_value, msg in engine.diff(full_snapshot):
+                                diagnostics.record_outgoing_update(addr, send_value)
                                 pipe.send_data({"addr": addr, "value": send_value})
                                 if msg:
                                     self._emit("message", text=msg)
@@ -204,6 +290,13 @@ class SessionWorker:
                             self._emit("log", text="Game stopped running; pausing sync")
 
                 elapsed = time.monotonic() - loop_start
+                diagnostics.set_backlogs(
+                    map_backlog=engine.map_write_pending_count,
+                    resync_backlog=engine.resync_send_pending_count,
+                )
+                if loop_start - last_diagnostics_emit_at >= 1.0:
+                    self._emit_diagnostics(diagnostics)
+                    last_diagnostics_emit_at = loop_start
                 sleep = self.POLL_PERIOD - elapsed
                 if sleep > 0:
                     time.sleep(sleep)
@@ -216,13 +309,41 @@ class SessionWorker:
             self._emit("log", text=f"ERROR: {e}", level="ERROR")
             self._emit("state", state="FAILED")
 
-    def _on_partner_reconnected(self, engine: SyncEngine) -> None:
+    def _emit_diagnostics(self, diagnostics: SessionDiagnostics, *, force: bool = False) -> None:
+        self._emit("diagnostics", text=diagnostics.render_text())
+
+    def _on_partner_reconnected(
+        self,
+        engine: SyncEngine,
+        diagnostics: SessionDiagnostics,
+    ) -> None:
         """Fired by PipeClient when the relay reports the partner is back.
         Resync re-broadcasts our full state to the new partner."""
         self._emit("message", text="Partner reconnected — re-syncing state")
+        diagnostics.record_partner_reconnect()
         engine.resync()
+        diagnostics.set_backlogs(
+            map_backlog=engine.map_write_pending_count,
+            resync_backlog=engine.resync_send_pending_count,
+        )
+        self._emit_diagnostics(diagnostics, force=True)
 
-    def _on_data(self, engine: SyncEngine, body: dict) -> None:
+    def _send_resync_chunk(
+        self,
+        engine: SyncEngine,
+        pipe: PipeClient,
+        diagnostics: SessionDiagnostics,
+    ) -> None:
+        for addr, value in engine.drain_resync_send_queue():
+            diagnostics.record_outgoing_update(addr, value)
+            pipe.send_data({"addr": addr, "value": value})
+
+    def _on_data(
+        self,
+        engine: SyncEngine,
+        diagnostics: SessionDiagnostics,
+        body: dict,
+    ) -> None:
         if body.get("op") == "hello":
             if body.get("guid") != engine.mode.GUID:
                 self._emit("message", text=f"Partner has incompatible mode (guid mismatch)")
@@ -232,5 +353,18 @@ class SessionWorker:
                 text=f"Partner app hello OK (guid={body['guid']}, version={body.get('version')})",
             )
             return
+        addr = body.get("addr")
+        value = body.get("value")
+        if addr is not None and value is not None:
+            diagnostics.record_incoming_update(int(addr), int(value))
         for msg in engine.handle_table(body):
+            if msg.startswith("Could not read address"):
+                diagnostics.record_incoming_read_error(msg)
+            elif msg.startswith("Could not write address"):
+                diagnostics.record_incoming_write_error(msg)
             self._emit("message", text=msg)
+        diagnostics.set_backlogs(
+            map_backlog=engine.map_write_pending_count,
+            resync_backlog=engine.resync_send_pending_count,
+        )
+        self._emit_diagnostics(diagnostics, force=True)

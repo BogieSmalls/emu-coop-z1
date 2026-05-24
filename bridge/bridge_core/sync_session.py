@@ -23,17 +23,21 @@ class SyncSession:
         version: str = __version__,
         map_write_gate: MapWriteGate | None = None,
         running_pause_threshold: int = 30,
+        resync_send_limit: int | None = None,
+        defer_full_poll_while_map_pending: bool = False,
     ) -> None:
         self.endpoint = endpoint
         self.pipe = pipe
         self.mode = mode
         self.sink = sink
         self.version = version
+        self.defer_full_poll_while_map_pending = defer_full_poll_while_map_pending
         self.engine = SyncEngine(
             endpoint=endpoint,
             mode=mode,
             map_write_gate=map_write_gate,
             running_pause_threshold=running_pause_threshold,
+            resync_send_limit=resync_send_limit,
         )
         self.app_hello_sent = False
         self.last_state: str | None = None
@@ -67,6 +71,18 @@ class SyncSession:
             return
         for message in self.engine.drain_map_write_gate():
             self.sink.message(message)
+        if (
+            self.defer_full_poll_while_map_pending
+            and self.engine.map_write_pending_count > 0
+        ):
+            self.sink.log(
+                f"EDN8 map backlog {self.engine.map_write_pending_count}; throttling full poll"
+            )
+            self._send_resync_chunk()
+            return
+        if self.engine.resync_send_pending_count > 0:
+            self._send_resync_chunk()
+            return
         try:
             snapshot = self.endpoint.read_ranges(self.mode.READ_RANGES, timeout_ms=300)
         except Exception as exc:
@@ -86,6 +102,10 @@ class SyncSession:
             if not self.engine.did_cache:
                 for addr, value in self.engine.check_first_running(snapshot):
                     self.pipe.send_data({"addr": addr, "value": value})
+                if self.engine.resync_send_pending_count:
+                    self.sink.log(
+                        f"EDN8 tloz_all resync queued {self.engine.resync_send_pending_count} updates"
+                    )
             for message in self.engine.drain_sleep_queue():
                 self.sink.message(message)
             for addr, send_value, msg in self.engine.diff(snapshot):
@@ -111,6 +131,10 @@ class SyncSession:
         self.sink.message("Partner reconnected - re-syncing state")
         self.app_hello_sent = False
         self.engine.resync()
+
+    def _send_resync_chunk(self) -> None:
+        for addr, value in self.engine.drain_resync_send_queue():
+            self.pipe.send_data({"addr": addr, "value": value})
 
 
 def run_sync_session(

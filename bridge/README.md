@@ -18,7 +18,7 @@ MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, or MiSTer <-> MiSTer.
 
 ## Quick start
 
-1. **Download `z1rr-coop-2.0-beta6-hardware.exe`** (single file, ~19 MB).
+1. **Download `z1rr-coop-2.0-beta7-hardware.exe`** (single file, ~19 MB).
 2. **Run the .exe** and choose `EverDrive Pro N8` or `MiSTer`.
 3. For **EDN8**, plug in your cart and follow the patch/upload flow:
    - Pick your Z1 ROM (vanilla or Z1R seed; both work)
@@ -144,3 +144,11 @@ the same ranges. The `addrs` method is intended for inventory or single-byte
 diagnostics; by default the script refuses large `addrs` sweeps such as
 `tloz_all` or `map` because those fan out into multiple CC transactions per
 tick and can overload the cart.
+
+In normal EDN8 `tloz_all` sessions, reconnect re-sync and incoming map writes
+are throttled separately: reconnect state is sent in small chunks, and full
+polling pauses briefly while a queued map-write backlog drains.
+
+The hardware session screen also includes a **Diagnostics** tab. EDN8 players
+can use **Copy Diagnostics** to share live poll counts, endpoint failures,
+incoming/outgoing update counts, map/resync backlog, and last endpoint error.

@@ -140,6 +140,37 @@ def test_sync_session_drains_gated_map_write_on_tick():
     assert gate.pending_count == 0
 
 
+def test_sync_session_can_defer_full_poll_while_map_write_backlog_drains():
+    class RecordingEndpoint(DictMemoryEndpoint):
+        def __init__(self, memory):
+            super().__init__(memory)
+            self.read_ranges_calls = []
+
+        def read_ranges(self, ranges, timeout_ms=300):
+            self.read_ranges_calls.append(ranges)
+            return super().read_ranges(ranges, timeout_ms=timeout_ms)
+
+    endpoint = RecordingEndpoint({0x0012: 0x05, 0x067F: 0x00, 0x0680: 0x00})
+    gate = MapWriteGate(drain_interval_s=0)
+    session = SyncSession(
+        endpoint=endpoint,
+        pipe=FakePipe(),
+        mode=tloz_all,
+        sink=FakeSink(),
+        map_write_gate=gate,
+        defer_full_poll_while_map_pending=True,
+    )
+
+    session.on_data({"addr": 0x067F, "value": 0x10})
+    session.on_data({"addr": 0x0680, "value": 0x80})
+    session.tick_once()
+
+    assert endpoint.read_byte(0x067F) == 0x10
+    assert endpoint.read_byte(0x0680) == 0x00
+    assert gate.pending_count == 1
+    assert endpoint.read_ranges_calls == [[(tloz_all.RUNNING_ADDR, 1)]]
+
+
 def test_sync_session_queues_incoming_partner_writes_until_game_is_running():
     endpoint = DictMemoryEndpoint({0x0012: 0x00, 0x0657: 0x00})
     sink = FakeSink()

@@ -63,15 +63,15 @@ For bridge details, see [bridge/README.md](bridge/README.md).
 
 ## Downloads
 
-Current beta6 release:
+Current beta7 release:
 
-- Hardware bridge for EDN8 and MiSTer: `dist/hardware/z1rr-coop-2.0-beta6-hardware.exe`
-- Emulator package for 32-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta6-fceux-win32.zip`
-- Emulator package for 64-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta6-fceux-win64.zip`
+- Hardware bridge for EDN8 and MiSTer: `dist/hardware/z1rr-coop-2.0-beta7-hardware.exe`
+- Emulator package for 32-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta7-fceux-win32.zip`
+- Emulator package for 64-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta7-fceux-win64.zip`
 
 Release page:
 
-<https://github.com/BogieSmalls/z1rr-coop/releases/tag/v2.0.0-beta.6>
+<https://github.com/BogieSmalls/z1rr-coop/releases/tag/v2.0.0-beta.7>
 
 ## Quick Start
 

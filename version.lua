@@ -12,7 +12,7 @@ version = {
 	
 	-- Which released version number does this have (used for basically nothing)
 	-- Put your name in here as a variant or something I guess
-	release = "2.0 beta6",
+	release = "2.0 beta7",
 
 	-- Protocol version for new Pipe transports (Direct/Relay). Bump on wire-format break.
 	protocolVersion = 1,

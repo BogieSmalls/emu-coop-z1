@@ -10,6 +10,18 @@ from bridge_gui.device_flow import DEVICE_EDN8, DEVICE_MISTER, build_session_con
 AVAILABLE_MODES = ["tloz_basic", "tloz_progress", "tloz_all"]  # extend as more modes are ported
 DEFAULT_RELAY = "coop.z1rracing.com"
 DEFAULT_RELAY_PORT = 9999
+OLD_EDN8_STM32_VID = 0x0483
+NEW_EDN8_USB_ID = (0x38DF, 0x0017)
+
+
+def port_is_likely_edn8(port) -> bool:
+    vid = port.vid or 0
+    pid = port.pid or 0
+    return vid == OLD_EDN8_STM32_VID or (vid, pid) == NEW_EDN8_USB_ID
+
+
+def sort_edn8_ports(ports: list) -> list:
+    return sorted(ports, key=lambda port: 0 if port_is_likely_edn8(port) else 1)
 
 
 class RelaySetupScreen(ctk.CTkFrame):
@@ -92,29 +104,21 @@ class RelaySetupScreen(ctk.CTkFrame):
         )
         self._connect_btn.pack(side="left", padx=5)
 
-    # EDN8 Pro uses an STM32 USB CDC chip with VID 0x0483 (STMicroelectronics).
-    EDN8_VID = 0x0483
-
     def _detect_com_ports(self) -> list[str]:
         """Return COM ports with the likely EDN8 first, others after.
         Each entry is the bare device name (e.g. 'COM5') so existing UI bindings keep working;
         the dropdown's first item is what's preselected."""
-        ports = list(serial.tools.list_ports.comports())
-        edn8 = [p for p in ports if (p.vid or 0) == self.EDN8_VID]
-        others = [p for p in ports if (p.vid or 0) != self.EDN8_VID]
-        return [p.device for p in edn8 + others]
+        return [p.device for p in sort_edn8_ports(list(serial.tools.list_ports.comports()))]
 
     def _detect_com_port_labels(self) -> list[str]:
         """Same as _detect_com_ports but with friendly labels for the dropdown
         (e.g. 'COM5  -  EDN8 (USB Serial Device)')."""
-        ports = list(serial.tools.list_ports.comports())
-        edn8 = [p for p in ports if (p.vid or 0) == self.EDN8_VID]
-        others = [p for p in ports if (p.vid or 0) != self.EDN8_VID]
         out: list[str] = []
-        for p in edn8:
-            out.append(f"{p.device}  -  EDN8 ({p.description})")
-        for p in others:
-            out.append(f"{p.device}  -  {p.description}")
+        for p in sort_edn8_ports(list(serial.tools.list_ports.comports())):
+            if port_is_likely_edn8(p):
+                out.append(f"{p.device}  -  EDN8 ({p.description})")
+            else:
+                out.append(f"{p.device}  -  {p.description}")
         return out
 
     def _update_connect_state(self) -> None:

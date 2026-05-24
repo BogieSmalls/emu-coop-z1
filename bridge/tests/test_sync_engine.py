@@ -97,9 +97,18 @@ from bridge_core.modes import tloz_all
 from bridge_core.sync_engine import SyncEngine
 
 
-def make_engine(memory=None, map_write_gate=None) -> tuple[SyncEngine, DictMemoryEndpoint]:
+def make_engine(
+    memory=None,
+    map_write_gate=None,
+    resync_send_limit=None,
+) -> tuple[SyncEngine, DictMemoryEndpoint]:
     endpoint = DictMemoryEndpoint(memory or {})
-    engine = SyncEngine(endpoint=endpoint, mode=tloz_all, map_write_gate=map_write_gate)
+    engine = SyncEngine(
+        endpoint=endpoint,
+        mode=tloz_all,
+        map_write_gate=map_write_gate,
+        resync_send_limit=resync_send_limit,
+    )
     return engine, endpoint
 
 
@@ -233,6 +242,28 @@ def test_sync_engine_force_send_skips_delta_records():
 
     assert (0x0657, 1) in to_send
     assert not any(addr == 0x067C for addr, _value in to_send)
+
+
+def test_sync_engine_throttles_force_send_when_limit_is_set():
+    engine, _endpoint = make_engine(resync_send_limit=2)
+    engine.resync()
+
+    first = engine.check_first_running(
+        {
+            0x0012: 0x05,
+            0x0657: 1,
+            0x065A: 1,
+            0x065C: 1,
+            0x067C: 8,
+        }
+    )
+    second = engine.drain_resync_send_queue()
+    third = engine.drain_resync_send_queue()
+
+    assert first == [(0x0657, 1), (0x065A, 1)]
+    assert second == [(0x065C, 1)]
+    assert third == []
+    assert not any(addr == 0x067C for addr, _value in first + second + third)
 
 
 def test_sync_engine_suppressed_zero_boundary_delta_updates_cache():

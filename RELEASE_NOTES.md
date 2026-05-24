@@ -1,6 +1,6 @@
-# z1rr-coop v2.0 beta 6 - release notes
+# z1rr-coop v2.0 beta 7 - release notes
 
-Sixth community-testing build of the z1rr-coop bridge. Beta6 moves packaged clients to the stable public relay hostname, so future relay IP changes do not require another client rebuild.
+Seventh community-testing build of the z1rr-coop bridge. Beta7 recognizes the newer EverDrive N8 Pro USB device ID used by firmware `v25.1109` and adds EDN8-specific overload protection for `tloz_all` reconnect recovery.
 
 This is a pre-release. Keep bridge logs handy while validating hardware sessions, especially EDN8 `tloz_all`.
 
@@ -8,11 +8,18 @@ This is a pre-release. Keep bridge logs handy while validating hardware sessions
 
 | You play on... | Download | Size |
 |---|---|---|
-| **Hardware bridge: EDN8 or MiSTer** | `z1rr-coop-2.0-beta6-hardware.exe` | ~19 MB |
-| **32-bit FCEUX** | `z1rr-coop-2.0-beta6-fceux-win32.zip` | ~540 KB |
-| **64-bit FCEUX** | `z1rr-coop-2.0-beta6-fceux-win64.zip` | ~1.3 MB |
+| **Hardware bridge: EDN8 or MiSTer** | `z1rr-coop-2.0-beta7-hardware.exe` | ~19 MB |
+| **32-bit FCEUX** | `z1rr-coop-2.0-beta7-fceux-win32.zip` | ~540 KB |
+| **64-bit FCEUX** | `z1rr-coop-2.0-beta7-fceux-win64.zip` | ~1.3 MB |
 
 Any two endpoints can be paired together: FCEUX, EDN8, or MiSTer. FCEUX <-> FCEUX, FCEUX <-> EDN8, FCEUX <-> MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, and MiSTer <-> MiSTer all use the same shared cloud relay and pair by an agreed-on session code.
+
+## What's new in v2.0 beta 7
+
+- **Newer EDN8 firmware USB detection.** The hardware bridge now prioritizes both the older STM32 EDN8 USB VID and the newer `38DF:0017` EverDrive USB device ID, so the COM dropdown is less likely to default to an unrelated CH340 serial adapter after firmware `v25.1109`.
+- **EDN8 `tloz_all` reconnect safety.** Reconnect re-sync now sends queued EDN8 `tloz_all` state gradually instead of blasting every non-zero map/progress byte in one tick.
+- **EDN8 map backlog protection.** While an incoming `tloz_all` map-write backlog is draining, the EDN8 bridge temporarily skips full `tloz_all` polling so read and write pressure are not stacked on the cart.
+- **EDN8 diagnostics tab.** The live session screen now has a Diagnostics tab with copyable EDN8 counters for polls, endpoint failures, incoming/outgoing updates, map backlog, resync backlog, and last endpoint error.
 
 ## What's new in v2.0 beta 6
 
@@ -52,7 +59,7 @@ Any two endpoints can be paired together: FCEUX, EDN8, or MiSTer. FCEUX <-> FCEU
 
 ### Hardware bridge
 
-A standalone Windows app that lets hardware endpoints play emu-coop through the shared relay. EDN8 and MiSTer are supported in beta6, and either can pair with FCEUX or another hardware bridge endpoint. Works with vanilla Z1, Z1R seeds, or any Z1-derived ROM.
+A standalone Windows app that lets hardware endpoints play emu-coop through the shared relay. EDN8 and MiSTer are supported in beta7, and either can pair with FCEUX or another hardware bridge endpoint. Works with vanilla Z1, Z1R seeds, or any Z1-derived ROM.
 
 - Choose EDN8 or MiSTer from the first screen.
 - EDN8 flow patches the ROM and uploads it to `sd:\z1rr-coop\`.
@@ -78,7 +85,7 @@ Pick the mode that matches the workload you want; both peers must use the same m
 
 ### Hardware bridge players
 
-1. Download `z1rr-coop-2.0-beta6-hardware.exe`.
+1. Download `z1rr-coop-2.0-beta7-hardware.exe`.
 2. For EDN8, plug your EDN8 into your PC over USB and into your NES, then power on the NES. For MiSTer, make sure SSH is enabled and the MiSTer is reachable on your network.
 3. Run the .exe. The flow walks you through hardware choice, ROM setup, relay connection, and pairing.
 4. For EDN8, launch the patched ROM from the `z1rr-coop` folder on the cart menu. For MiSTer, launch the deployed `NES_z1rr-coop` core and staged ROM.
@@ -86,7 +93,7 @@ Pick the mode that matches the workload you want; both peers must use the same m
 
 ### FCEUX players
 
-1. Download the FCEUX zip that matches your emulator bitness: `z1rr-coop-2.0-beta6-fceux-win32.zip` for 32-bit FCEUX, or `z1rr-coop-2.0-beta6-fceux-win64.zip` for 64-bit FCEUX.
+1. Download the FCEUX zip that matches your emulator bitness: `z1rr-coop-2.0-beta7-fceux-win32.zip` for 32-bit FCEUX, or `z1rr-coop-2.0-beta7-fceux-win64.zip` for 64-bit FCEUX.
 2. Extract the zip anywhere.
 3. Launch FCEUX and load your Z1 ROM.
 4. From the FCEUX Lua menu, load `coop.lua` from the extracted folder.
@@ -95,7 +102,7 @@ Pick the mode that matches the workload you want; both peers must use the same m
 
 If your FCEUX build cannot open the dialog and reports `Must call iup.Open in main thread`, edit `coop_config.lua` next to `coop.lua`, set `enabled = true`, enter the shared session code, confirm the `mode` line, save, and reload `coop.lua`.
 
-Beta6 intentionally ships only the Zelda 1 modes listed above. Older emulator-only modes are no longer included in the packaged client.
+Beta7 intentionally ships only the Zelda 1 modes listed above. Older emulator-only modes are no longer included in the packaged client.
 
 ## Known issues
 

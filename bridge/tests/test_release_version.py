@@ -20,18 +20,18 @@ def test_bridge_core_version_matches_release_version_lua():
     assert __version__ == _release_from_version_lua()
 
 
-def test_beta6_release_version_is_advertised():
-    assert __version__ == "2.0 beta6"
+def test_beta7_release_version_is_advertised():
+    assert __version__ == "2.0 beta7"
 
 
-def test_readme_and_release_notes_advertise_beta6_artifacts():
+def test_readme_and_release_notes_advertise_beta7_artifacts():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     release_notes = (REPO_ROOT / "RELEASE_NOTES.md").read_text(encoding="utf-8")
 
     for text in (readme, release_notes):
-        assert "z1rr-coop-2.0-beta6" in text
-        assert "emu-coop-plus-2.0-beta6" not in text
-        assert "2.0-beta5" not in text
+        assert "z1rr-coop-2.0-beta7" in text
+        assert "emu-coop-plus-2.0-beta7" not in text
+        assert "2.0-beta6" not in text
 
 
 def test_mister_payload_manifest_uses_release_version():

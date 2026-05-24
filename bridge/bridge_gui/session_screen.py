@@ -1,4 +1,4 @@
-"""Session: live status panel with two readiness indicators + Log/Messages tabs."""
+"""Session: live status panel with readiness indicators and status tabs."""
 from __future__ import annotations
 
 import customtkinter as ctk
@@ -46,6 +46,7 @@ class SessionScreen(ctk.CTkFrame):
         self._tabs.pack(pady=10, padx=20, fill="both", expand=True)
         self._tabs.add("Messages")
         self._tabs.add("Log")
+        self._tabs.add("Diagnostics")
         self._tabs.set("Messages")
 
         # Messages textbox
@@ -55,6 +56,17 @@ class SessionScreen(ctk.CTkFrame):
         # Log textbox
         self._log_text = ctk.CTkTextbox(self._tabs.tab("Log"), state="disabled")
         self._log_text.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Diagnostics textbox + copy button
+        diagnostics_tab = self._tabs.tab("Diagnostics")
+        self._diagnostics_text = ctk.CTkTextbox(diagnostics_tab, state="disabled")
+        self._diagnostics_text.pack(fill="both", expand=True, padx=5, pady=(5, 2))
+        ctk.CTkButton(
+            diagnostics_tab,
+            text="Copy Diagnostics",
+            command=self._copy_diagnostics,
+        ).pack(pady=(2, 5))
+        self._latest_diagnostics_text = ""
 
         # Disconnect button
         ctk.CTkButton(self, text="Disconnect", command=self._disconnect).pack(pady=10)
@@ -99,6 +111,8 @@ class SessionScreen(ctk.CTkFrame):
             self.update_net_relay(d["connected"])
         elif kind == "net_partner":
             self.update_net_partner(d["paired"])
+        elif kind == "diagnostics":
+            self.diagnostics(d["text"])
 
     def _disconnect(self) -> None:
         if hasattr(self, "_worker"):
@@ -121,6 +135,13 @@ class SessionScreen(ctk.CTkFrame):
         color = {"ESTABLISHED": "green", "RECONNECTING": "orange", "DISCONNECTED": "red"}.get(state, "gray")
         self._sync_label.configure(text=f"Sync: {state}", text_color=color)
 
+    def diagnostics(self, text: str) -> None:
+        self._latest_diagnostics_text = text
+        self._diagnostics_text.configure(state="normal")
+        self._diagnostics_text.delete("1.0", "end")
+        self._diagnostics_text.insert("end", text)
+        self._diagnostics_text.configure(state="disabled")
+
     def update_cart_usb(self, connected: bool) -> None:
         self._cart_usb_label.configure(text=f"USB: {'🟢 connected' if connected else '🔴 disconnected'}")
 
@@ -132,6 +153,10 @@ class SessionScreen(ctk.CTkFrame):
 
     def update_net_partner(self, paired: bool) -> None:
         self._net_partner_label.configure(text=f"Partner: {'🟢 paired' if paired else '🟡 unpaired'}")
+
+    def _copy_diagnostics(self) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(self._latest_diagnostics_text)
 
     # --- internals ---
 

@@ -27,6 +27,7 @@ from bridge_core import __version__
 from bridge_core import ips
 from bridge_core.cc_client import CCClient
 from bridge_core.cc_endpoint import CCMemoryEndpoint
+from bridge_core.edn8_overload import tloz_all_overload_options
 from bridge_core.map_write_gate import MapWriteGate
 from bridge_core.mister_deploy import DeployAsset, MisterDeployService, MisterSshConfig
 from bridge_core.mister_endpoint import ReadOnlyMisterMemoryEndpoint
@@ -262,8 +263,19 @@ def cmd_run(args: argparse.Namespace) -> int:
     pipe = PipeClient(socket=sock, code=args.code, peer_id=peer_id)
     pipe._reconnect_enabled = True
 
-    engine = SyncEngine(endpoint=endpoint, mode=mode, map_write_gate=MapWriteGate())
+    overload_options = tloz_all_overload_options("edn8", args.mode)
+    engine = SyncEngine(
+        endpoint=endpoint,
+        mode=mode,
+        map_write_gate=MapWriteGate(),
+        resync_send_limit=overload_options.get("resync_send_limit"),
+    )
     sink.log("EDN8 map write gate enabled")
+    if overload_options:
+        sink.log("EDN8 tloz_all overload protection enabled")
+    defer_full_poll_while_map_pending = bool(
+        overload_options.get("defer_full_poll_while_map_pending", False)
+    )
     if args.force_send:
         engine.force_send = True
         sink.log("force_send enabled")
@@ -279,6 +291,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     # App-level hello (after pipe ESTABLISHED)
     app_hello_sent = False
     last_state = None
+    last_map_backlog_log_at = 0.0
     sink.state("CONNECTING")
 
     try:
@@ -331,13 +344,29 @@ def cmd_run(args: argparse.Namespace) -> int:
                 else:
                     for msg in engine.drain_map_write_gate():
                         sink.message(msg)
-                    # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).
-                    # Much lighter on the cart's main-loop than scattered reads.
-                    try:
-                        full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
-                    except Exception as e:
-                        sink.log(f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                    if (
+                        defer_full_poll_while_map_pending
+                        and engine.map_write_pending_count > 0
+                    ):
+                        if loop_start - last_map_backlog_log_at >= 1.0:
+                            sink.log(
+                                f"EDN8 map backlog {engine.map_write_pending_count}; "
+                                "throttling full poll"
+                            )
+                            last_map_backlog_log_at = loop_start
+                        _send_resync_chunk(engine, pipe)
                         full_snapshot = None
+                    elif engine.resync_send_pending_count > 0:
+                        _send_resync_chunk(engine, pipe)
+                        full_snapshot = None
+                    else:
+                        # Poll the mode's READ_RANGES via Action 0x01 (ArrayRead).
+                        # Much lighter on the cart's main-loop than scattered reads.
+                        try:
+                            full_snapshot = endpoint.read_ranges(mode.READ_RANGES, timeout_ms=300)
+                        except Exception as e:
+                            sink.log(f"Endpoint read failed: {endpoint_error(e)}", level="ERROR")
+                            full_snapshot = None
                 if full_snapshot is not None:
                     invalid_reason = engine.implausible_snapshot_reason(full_snapshot)
                     if invalid_reason:
@@ -353,6 +382,11 @@ def cmd_run(args: argparse.Namespace) -> int:
                             to_send = engine.check_first_running(full_snapshot)
                             for addr, value in to_send:
                                 pipe.send_data({"addr": addr, "value": value})
+                            if engine.resync_send_pending_count:
+                                sink.log(
+                                    "EDN8 tloz_all resync queued "
+                                    f"{engine.resync_send_pending_count} updates"
+                                )
                         for msg in engine.drain_sleep_queue():
                             sink.message(msg)
                         for addr, send_value, msg in engine.diff(full_snapshot):
@@ -386,6 +420,11 @@ def _on_data(engine: SyncEngine, sink: ConsoleStatusSink, body: dict) -> None:
     messages = engine.handle_table(body)
     for m in messages:
         sink.message(m)
+
+
+def _send_resync_chunk(engine: SyncEngine, pipe: PipeClient) -> None:
+    for addr, value in engine.drain_resync_send_queue():
+        pipe.send_data({"addr": addr, "value": value})
 
 
 def main(argv: list[str] | None = None) -> int:
