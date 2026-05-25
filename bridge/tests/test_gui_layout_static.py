@@ -19,6 +19,15 @@ def test_gui_uses_ganon_icon_asset():
     assert "self._set_window_icon()" in source
 
 
+def test_gui_window_title_uses_z1rr_coop_branding():
+    source = (REPO_ROOT / "bridge" / "bridge_gui" / "app.py").read_text(encoding="utf-8")
+
+    assert 'APP_TITLE = "Z1RR-coop Bridge"' in source
+    assert "self.title(APP_TITLE)" in source
+    old_title = 'self.title("emu-' + 'coop bridge")'
+    assert old_title not in source
+
+
 def test_rom_setup_screen_is_scrollable_for_mister_deploy_flow():
     source = (REPO_ROOT / "bridge" / "bridge_gui" / "setup_screen.py").read_text(encoding="utf-8")
 
@@ -38,3 +47,23 @@ def test_session_screen_has_diagnostics_tab_with_copy_button():
     assert "self._diagnostics_text" in source
     assert 'text="Copy Diagnostics"' in source
     assert "def _copy_diagnostics" in source
+
+
+def test_mister_setup_runs_helper_health_probe_after_restart():
+    source = (REPO_ROOT / "bridge" / "bridge_gui" / "setup_screen.py").read_text(encoding="utf-8")
+
+    assert "probe_mister_helper" in source
+    assert "format_mister_health_summary" in source
+    assert "if not health.helper_reachable" in source
+
+
+def test_mister_setup_has_diagnose_and_copy_diagnostics_buttons():
+    source = (REPO_ROOT / "bridge" / "bridge_gui" / "setup_screen.py").read_text(encoding="utf-8")
+
+    assert 'text="Diagnose MiSTer"' in source
+    assert 'text="Copy Diagnostics"' in source
+    assert "def _diagnose_mister" in source
+    assert "def _copy_mister_diagnostics" in source
+    assert "run_mister_diagnostics" in source
+    assert "start_helper_if_needed=True" in source
+    assert 'helper.get("log_path")' in source

@@ -1,4 +1,4 @@
-"""Tiny MiSTer helper protocol for read-only emu-coop POCs."""
+"""Tiny MiSTer helper protocol for Z1RR-coop MiSTer sessions."""
 from __future__ import annotations
 
 import json
@@ -50,6 +50,7 @@ class MisterHelperMemoryEndpoint:
         self._timeout = timeout
         self._request_override = request
         self.last_frame = 0
+        self.last_error: str | None = None
 
     def read_ranges(
         self,
@@ -61,14 +62,18 @@ class MisterHelperMemoryEndpoint:
         )
         self.last_frame = int(response.get("frame", self.last_frame))
         if not response.get("ok"):
+            self.last_error = str(response.get("error") or "helper_error")
             return None
+        self.last_error = None
         return {int(addr): int(value) & 0xFF for addr, value in response.get("values", [])}
 
     def read_byte(self, addr: int, timeout_ms: int = 200) -> int | None:
         response = self._request({"op": "read_byte", "addr": addr})
         self.last_frame = int(response.get("frame", self.last_frame))
         if not response.get("ok"):
+            self.last_error = str(response.get("error") or "helper_error")
             return None
+        self.last_error = None
         return int(response.get("value", 0)) & 0xFF
 
     def write_pairs(self, pairs: list[tuple[int, int]]) -> bool:

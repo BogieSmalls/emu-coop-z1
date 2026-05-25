@@ -225,6 +225,41 @@ def test_sync_engine_handle_table_emits_message():
     assert any("Wood Sword" in m for m in msgs)
 
 
+def test_sync_engine_handle_table_emits_single_name_message():
+    engine, _endpoint = make_engine({0x0012: 0x05, 0x0660: 0})
+
+    msgs = engine.handle_table({"addr": 0x0660, "value": 1})
+
+    assert msgs == ["Partner got Raft"]
+
+
+def test_sync_engine_handle_table_emits_bitmap_messages():
+    engine, endpoint = make_engine({0x0012: 0x05, 0x0671: 0})
+
+    msgs = engine.handle_table({"addr": 0x0671, "value": 0x05})
+
+    assert endpoint.read_byte(0x0671) == 0x05
+    assert msgs == [
+        "Partner got First Triforce Piece",
+        "Partner got Third Triforce Piece",
+    ]
+
+
+def test_sync_engine_drain_sleep_queue_returns_incoming_results():
+    engine, endpoint = make_engine({0x0012: 0x00, 0x0660: 0})
+
+    assert engine.handle_table({"addr": 0x0660, "value": 1}) == []
+    endpoint.memory[0x0012] = 0x05
+    results = engine.drain_sleep_queue_results()
+
+    assert len(results) == 1
+    assert results[0].applied
+    assert results[0].addr == 0x0660
+    assert results[0].previous_value == 0
+    assert results[0].written_value == 1
+    assert results[0].messages == ["Partner got Raft"]
+
+
 def test_sync_engine_resync_clears_cache():
     engine, _endpoint = make_engine()
     engine.cache[0x0657] = 1

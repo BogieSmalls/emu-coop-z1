@@ -5,6 +5,7 @@ record_changed() is line-by-line equivalent to the Lua function. Other parts
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from bridge_core.map_write_gate import MapWriteGate
@@ -100,6 +101,20 @@ def record_changed(
 
 from bridge_core.memory_endpoint import MemoryEndpoint
 from bridge_core.sync_probe import endpoint_error, read_running_byte
+
+
+@dataclass
+class IncomingApplyResult:
+    addr: int | None = None
+    incoming_value: int | None = None
+    status: str = "ignored"
+    previous_value: int | None = None
+    written_value: int | None = None
+    messages: list[str] = field(default_factory=list)
+
+    @property
+    def applied(self) -> bool:
+        return self.status == "applied"
 
 
 class SyncEngine:
@@ -210,22 +225,53 @@ class SyncEngine:
         _bypass_map_write_gate: bool = False,
     ) -> list[str]:
         """Apply a partner's data frame to RAM. Returns any user-visible messages."""
+        return self.handle_table_result(
+            t,
+            queue_if_not_running=queue_if_not_running,
+            now=now,
+            _bypass_map_write_gate=_bypass_map_write_gate,
+        ).messages
+
+    def handle_table_result(
+        self,
+        t: dict,
+        *,
+        queue_if_not_running: bool = True,
+        now: float | None = None,
+        _bypass_map_write_gate: bool = False,
+    ) -> IncomingApplyResult:
+        """Apply a partner's data frame and return messages plus handling detail."""
         addr = t.get("addr")
         if addr is None:
-            return []
+            return IncomingApplyResult(status="missing_addr")
+        value = t.get("value")
+        if value is None:
+            return IncomingApplyResult(addr=int(addr), status="missing_value")
+        addr = int(addr)
+        incoming_value = int(value)
+        result = IncomingApplyResult(
+            addr=addr,
+            incoming_value=incoming_value,
+            status="received",
+        )
         record = self.mode.SYNC.get(addr)
         if record is None:
-            return [f"Partner changed unknown address 0x{addr:04X}"]
-        invalid_reason = self.implausible_change_reason(addr, t["value"])
+            result.status = "unknown_addr"
+            result.messages = [f"Partner changed unknown address 0x{addr:04X}"]
+            return result
+        invalid_reason = self.implausible_change_reason(addr, incoming_value)
         if invalid_reason:
-            return [f"Ignoring implausible partner change: {invalid_reason}"]
+            result.status = "implausible"
+            result.messages = [f"Ignoring implausible partner change: {invalid_reason}"]
+            return result
         if (
             not _bypass_map_write_gate
             and self.map_write_gate is not None
             and self._should_gate_map_write(addr, record)
         ):
-            self.map_write_gate.enqueue(addr, t["value"], now=now)
-            return []
+            self.map_write_gate.enqueue(addr, incoming_value, now=now)
+            result.status = "deferred_map_write"
+            return result
         if queue_if_not_running:
             try:
                 running = read_running_byte(self.endpoint, self.mode)
@@ -233,44 +279,40 @@ class SyncEngine:
                 running = None
             if not running:
                 self.sleep_queue.append(dict(t))
-                return []
+                result.status = "queued_not_running"
+                return result
         try:
             previous_value = self.endpoint.read_byte(addr)
         except Exception as exc:
-            return [f"Could not read address 0x{addr:04X}: {endpoint_error(exc)}"]
+            result.status = "read_error"
+            result.messages = [f"Could not read address 0x{addr:04X}: {endpoint_error(exc)}"]
+            return result
         if previous_value is None:
-            return [f"Could not read address 0x{addr:04X}"]
-        allow, value = record_changed(record, t["value"], previous_value, receiving=True)
-        messages: list[str] = []
+            result.status = "read_error"
+            result.messages = [f"Could not read address 0x{addr:04X}"]
+            return result
+        result.previous_value = int(previous_value) & 0xFF
+        allow, value = record_changed(record, incoming_value, previous_value, receiving=True)
+        result.written_value = int(value) & 0xFF
         if allow:
             try:
                 wrote = self.endpoint.write_pairs([(addr, value & 0xFF)])
             except NotImplementedError:
                 wrote = False
             except Exception as exc:
-                return [f"Could not write address 0x{addr:04X}: {endpoint_error(exc)}"]
+                result.status = "write_error"
+                result.messages = [f"Could not write address 0x{addr:04X}: {endpoint_error(exc)}"]
+                return result
             if not wrote:
-                return [f"Could not write address 0x{addr:04X}"]
+                result.status = "write_error"
+                result.messages = [f"Could not write address 0x{addr:04X}"]
+                return result
+            result.status = "applied"
             self.cache[addr] = value & 0xFF
-            # Receive trigger
-            if "receive_trigger" in record:
-                msg = record["receive_trigger"](value, previous_value)
-                if msg:
-                    messages.append(msg)
-            # Function-kind messages
-            elif "message" in record:
-                msg = record["message"](value, previous_value)
-                if msg:
-                    messages.append(msg)
-            # Single-name items
-            elif "name" in record and value != previous_value:
-                messages.append(f"Partner got {record['name']}")
-            # Multi-name items
-            elif "name_map" in record and value > 0 and value != previous_value:
-                idx = value - 1
-                if 0 <= idx < len(record["name_map"]):
-                    messages.append(f"Partner got {record['name_map'][idx]}")
-        return messages
+            result.messages = self._build_receive_messages(record, value, previous_value)
+        else:
+            result.status = "no_change"
+        return result
 
     def observe_running(self) -> None:
         self._not_running_ticks = 0
@@ -329,12 +371,18 @@ class SyncEngine:
         return chunk
 
     def drain_sleep_queue(self) -> list[str]:
+        messages: list[str] = []
+        for result in self.drain_sleep_queue_results():
+            messages.extend(result.messages)
+        return messages
+
+    def drain_sleep_queue_results(self) -> list[IncomingApplyResult]:
         queued = self.sleep_queue
         self.sleep_queue = []
-        messages: list[str] = []
+        results: list[IncomingApplyResult] = []
         for item in queued:
-            messages.extend(self.handle_table(item, queue_if_not_running=False))
-        return messages
+            results.append(self.handle_table_result(item, queue_if_not_running=False))
+        return results
 
     def resync(self) -> None:
         """Clear cache and arm force_send so the next running tick re-broadcasts state."""
@@ -354,6 +402,36 @@ class SyncEngine:
             if 0 <= idx < len(record["name_map"]):
                 return f"You got {record['name_map'][idx]}"
         return None
+
+    @staticmethod
+    def _build_receive_messages(
+        record: dict,
+        value: int,
+        previous_value: int,
+    ) -> list[str]:
+        if "receive_trigger" in record:
+            msg = record["receive_trigger"](value, previous_value)
+            return [msg] if msg else []
+        if "message" in record:
+            msg = record["message"](value, previous_value)
+            return [msg] if msg else []
+
+        verb = record.get("verb", "got")
+        if "name" in record and value != previous_value:
+            return [f"Partner {verb} {record['name']}"]
+        if "name_map" in record and value > 0 and value != previous_value:
+            idx = value - 1
+            if 0 <= idx < len(record["name_map"]):
+                return [f"Partner {verb} {record['name_map'][idx]}"]
+            return []
+        if "name_bitmap" in record:
+            messages = []
+            for bit, name in enumerate(record["name_bitmap"]):
+                mask = 1 << bit
+                if value & mask and not previous_value & mask:
+                    messages.append(f"Partner {verb} {name}")
+            return messages
+        return []
 
     @staticmethod
     def _max_plausible_value(record: dict) -> int | None:

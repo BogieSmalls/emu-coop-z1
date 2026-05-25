@@ -26,7 +26,7 @@ $version = $rawVersion -replace '\s+', '-'
 uv sync --extra test --extra dist
 
 # Run PyInstaller (spec produces dist\bridge.exe inside bridge/ by default)
-uv run pyinstaller bridge.spec --clean --noconfirm
+uv run python -m PyInstaller bridge.spec --clean --noconfirm
 
 $built = Join-Path $PSScriptRoot "dist\bridge.exe"
 if (-not (Test-Path $built)) {

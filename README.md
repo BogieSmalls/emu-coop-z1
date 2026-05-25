@@ -42,7 +42,7 @@ Self-hosters can run their own relay; see [relay/README.md](relay/README.md).
 
 ## PC Hardware Bridge
 
-The hardware bridge is the Windows app that makes real hardware feel like another emu-coop endpoint.
+The hardware bridge is the Windows app that makes real hardware feel like another Z1RR-coop endpoint.
 
 For **EverDrive Pro N8**, the bridge:
 
@@ -63,15 +63,15 @@ For bridge details, see [bridge/README.md](bridge/README.md).
 
 ## Downloads
 
-Current beta7 release:
+Current beta8 release:
 
-- Hardware bridge for EDN8 and MiSTer: `dist/hardware/z1rr-coop-2.0-beta7-hardware.exe`
-- Emulator package for 32-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta7-fceux-win32.zip`
-- Emulator package for 64-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta7-fceux-win64.zip`
+- Hardware bridge for EDN8 and MiSTer: `dist/hardware/z1rr-coop-2.0-beta8-hardware.exe`
+- Emulator package for 32-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta8-fceux-win32.zip`
+- Emulator package for 64-bit FCEUX: `dist/emu/z1rr-coop-2.0-beta8-fceux-win64.zip`
 
 Release page:
 
-<https://github.com/BogieSmalls/z1rr-coop/releases/tag/v2.0.0-beta.7>
+<https://github.com/BogieSmalls/z1rr-coop/releases/tag/v2.0.0-beta.8>
 
 ## Quick Start
 

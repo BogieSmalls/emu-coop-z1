@@ -14,7 +14,10 @@ from typing import Any
 import customtkinter as ctk
 
 from bridge_core import ips
+from bridge_core.mister_diagnostics import MisterDiagnosticReport, run_mister_diagnostics
+from bridge_core.mister_health import format_mister_health_summary, probe_mister_helper
 from bridge_core.mister_deploy import DeployAsset, MisterDeployService, MisterSshConfig
+from bridge_core.modes import tloz_progress
 from bridge_core.user_settings import UserSettings
 from bridge_gui.device_flow import (
     DEVICE_EDN8,
@@ -36,6 +39,7 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
         self._active_endpoint: str | None = None
         self._settings = UserSettings.load()
         self._deploy_running = False
+        self._last_mister_diagnostics = ""
 
         self._title_label = ctk.CTkLabel(
             self,
@@ -136,11 +140,28 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
             command=self._deploy_to_mister,
             state="disabled",
         )
-        self._deploy_btn.grid(row=3, column=0, columnspan=2, pady=(10, 6))
+        self._deploy_btn.grid(row=3, column=0, sticky="ew", padx=(10, 5), pady=(10, 6))
 
-        self._mister_log = ctk.CTkTextbox(self._mister_frame, height=96, width=480)
-        self._mister_log.grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=6)
+        self._diagnose_btn = ctk.CTkButton(
+            self._mister_frame,
+            text="Diagnose MiSTer",
+            command=self._diagnose_mister,
+            state="disabled",
+        )
+        self._diagnose_btn.grid(row=3, column=1, sticky="ew", padx=(5, 10), pady=(10, 6))
+
+        self._copy_diagnostics_btn = ctk.CTkButton(
+            self._mister_frame,
+            text="Copy Diagnostics",
+            command=self._copy_mister_diagnostics,
+            state="disabled",
+        )
+        self._copy_diagnostics_btn.grid(row=4, column=0, columnspan=2, sticky="ew", padx=10, pady=6)
+
+        self._mister_log = ctk.CTkTextbox(self._mister_frame, height=132, width=480)
+        self._mister_log.grid(row=5, column=0, columnspan=2, sticky="ew", padx=10, pady=6)
         self._mister_log.configure(state="disabled")
+        self._mister_frame.columnconfigure(0, weight=1)
         self._mister_frame.columnconfigure(1, weight=1)
 
         self._status_label = ctk.CTkLabel(self, text="", wraplength=500, text_color="gray")
@@ -387,7 +408,12 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
             and self._rom_path is not None
             and bool(self._mister_host_var.get().strip())
         )
+        can_diagnose = not self._deploy_running and bool(self._mister_host_var.get().strip())
         self._deploy_btn.configure(state="normal" if ready else "disabled")
+        self._diagnose_btn.configure(state="normal" if can_diagnose else "disabled")
+        self._copy_diagnostics_btn.configure(
+            state="normal" if self._last_mister_diagnostics else "disabled"
+        )
 
     def _deploy_to_mister(self) -> None:
         if self._rom_path is None:
@@ -455,6 +481,13 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
             service.deploy(assets)
             remote_rom_path = service.stage_rom(rom_path, roms["remote_dir"])
             service.restart_helper(helper["remote_path"], port=int(helper["port"]))
+            report = self._build_mister_diagnostics(host, config.username, config.password)
+            self._post_mister_diagnostics(report.render_text())
+            health = report.helper_health
+            if health is None:
+                raise RuntimeError("MiSTer helper health was not checked.")
+            if not health.helper_reachable:
+                raise RuntimeError(format_mister_health_summary(health))
 
             config_dict = build_mister_rom_setup_config(
                 rom_path=rom_path,
@@ -470,6 +503,84 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
         finally:
             if service is not None:
                 service.close()
+
+    def _diagnose_mister(self) -> None:
+        host = self._mister_host_var.get().strip()
+        if not host:
+            self._status_label.configure(text="MiSTer host/IP is required.", text_color="red")
+            return
+        self._deploy_running = True
+        self._update_mister_deploy_state()
+        self._clear_mister_log()
+        self._append_mister_log("Running MiSTer diagnostics...")
+        self._status_label.configure(text="Running MiSTer diagnostics...", text_color="gray")
+
+        thread = threading.Thread(
+            target=self._diagnose_mister_worker,
+            args=(
+                host,
+                self._mister_username_var.get(),
+                self._mister_password_var.get(),
+            ),
+            daemon=True,
+        )
+        thread.start()
+
+    def _diagnose_mister_worker(self, host: str, username: str, password: str) -> None:
+        try:
+            report = self._build_mister_diagnostics(
+                host,
+                username,
+                password,
+                start_helper_if_needed=True,
+            )
+            self.after(
+                0,
+                lambda report_text=report.render_text(): self._on_mister_diagnostics_success(
+                    report_text
+                ),
+            )
+        except Exception as exc:
+            message = str(exc)
+            self.after(0, lambda message=message: self._on_mister_diagnostics_error(message))
+
+    def _build_mister_diagnostics(
+        self,
+        host: str,
+        username: str,
+        password: str,
+        *,
+        start_helper_if_needed: bool = False,
+    ) -> MisterDiagnosticReport:
+        manifest = self._load_mister_payload_manifest()
+        helper = manifest["helper"]
+        core = manifest["core"]
+        return run_mister_diagnostics(
+            host=host,
+            username=username,
+            password=password,
+            helper_local_path=self._mister_payload_path(helper["filename"]),
+            helper_remote_path=helper["remote_path"],
+            helper_log_path=helper.get("log_path"),
+            core_local_path=self._mister_payload_path(core["filename"]),
+            core_remote_path=core["remote_path"],
+            port=int(helper["port"]),
+            mode=tloz_progress,
+            start_helper_if_needed=start_helper_if_needed,
+            health_probe=probe_mister_helper,
+        )
+
+    def _on_mister_diagnostics_success(self, report_text: str) -> None:
+        self._deploy_running = False
+        self._set_mister_diagnostics(report_text)
+        self._status_label.configure(text="MiSTer diagnostics complete.", text_color="green")
+        self._update_mister_deploy_state()
+
+    def _on_mister_diagnostics_error(self, message: str) -> None:
+        self._deploy_running = False
+        self._append_mister_log(f"ERROR: {message}")
+        self._status_label.configure(text=message, text_color="red")
+        self._update_mister_deploy_state()
 
     def _on_mister_deploy_success(self, config: dict[str, Any]) -> None:
         self._deploy_running = False
@@ -490,7 +601,13 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
     def _post_mister_log(self, message: str) -> None:
         self.after(0, lambda: self._append_mister_log(message))
 
+    def _post_mister_diagnostics(self, report_text: str) -> None:
+        self.after(0, lambda: self._set_mister_diagnostics(report_text))
+
     def _clear_mister_log(self) -> None:
+        self._last_mister_diagnostics = ""
+        if hasattr(self, "_copy_diagnostics_btn"):
+            self._copy_diagnostics_btn.configure(state="disabled")
         self._mister_log.configure(state="normal")
         self._mister_log.delete("1.0", "end")
         self._mister_log.configure(state="disabled")
@@ -500,6 +617,18 @@ class ROMSetupScreen(ctk.CTkScrollableFrame):
         self._mister_log.insert("end", message + "\n")
         self._mister_log.see("end")
         self._mister_log.configure(state="disabled")
+
+    def _set_mister_diagnostics(self, report_text: str) -> None:
+        self._last_mister_diagnostics = report_text
+        self._append_mister_log(report_text)
+        self._copy_diagnostics_btn.configure(state="normal")
+
+    def _copy_mister_diagnostics(self) -> None:
+        if not self._last_mister_diagnostics:
+            return
+        self.clipboard_clear()
+        self.clipboard_append(self._last_mister_diagnostics)
+        self._status_label.configure(text="MiSTer diagnostics copied.", text_color="green")
 
     @staticmethod
     def _load_mister_payload_manifest() -> dict[str, Any]:

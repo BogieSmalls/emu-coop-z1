@@ -24,7 +24,17 @@ from bridge_core.mister_helper import MisterHelperMemoryEndpoint
 from bridge_core.pipe_client import PipeClient
 from bridge_core.session_diagnostics import SessionDiagnostics
 from bridge_core.sync_engine import SyncEngine
-from bridge_core.sync_probe import endpoint_error, read_running_probe
+from bridge_core.sync_probe import endpoint_error, read_running_probe_detail
+
+
+MISTER_RAM_SAMPLE_RANGES = [
+    (0x0012, 1),
+    (0x0657, 1),
+    (0x065A, 1),
+    (0x0660, 1),
+    (0x0671, 1),
+]
+MISTER_RAM_SAMPLE_ADDRS = [addr for addr, _length in MISTER_RAM_SAMPLE_RANGES]
 
 
 def edn8_overload_options(cfg: dict) -> dict[str, int | bool]:
@@ -135,6 +145,7 @@ class SessionWorker:
             last_state: str | None = None
             last_map_backlog_log_at = 0.0
             last_diagnostics_emit_at = 0.0
+            last_mister_sample_at = -999.0
 
             # Loop until user stops the worker or the pipe is fully closed.
             # We deliberately keep going through FAILED/RECONNECTING so the
@@ -191,20 +202,45 @@ class SessionWorker:
 
                 if pipe.state == "ESTABLISHED":
                     try:
-                        running_probe = read_running_probe(endpoint, mode, timeout_ms=300)
+                        running_probe_detail = read_running_probe_detail(
+                            endpoint,
+                            mode,
+                            timeout_ms=300,
+                        )
+                        running_probe = running_probe_detail.running
                     except Exception as e:
                         error = endpoint_error(e)
-                        diagnostics.record_running_probe(success=False, error=error)
+                        diagnostics.record_running_probe(
+                            success=False,
+                            frame=getattr(endpoint, "last_frame", None),
+                            error=error,
+                        )
                         self._emit("log", text=f"Endpoint read failed: {error}", level="ERROR")
                         running_probe = None
                     else:
+                        probe_error = None
+                        if running_probe is None:
+                            probe_error = (
+                                getattr(endpoint, "last_error", None)
+                                or "running probe timed out"
+                            )
                         diagnostics.record_running_probe(
                             success=running_probe is not None,
-                            error="running probe timed out" if running_probe is None else None,
+                            running=running_probe,
+                            addr=running_probe_detail.addr,
+                            value=running_probe_detail.value,
+                            frame=getattr(endpoint, "last_frame", None),
+                            error=probe_error,
                         )
                     if running_probe is None:
                         full_snapshot = None
                     elif not running_probe:
+                        if (
+                            cfg.get("endpoint_type") == "mister"
+                            and loop_start - last_mister_sample_at >= 1.0
+                        ):
+                            self._record_mister_ram_sample(endpoint, diagnostics)
+                            last_mister_sample_at = loop_start
                         if engine.observe_not_running():
                             self._emit("cart_game", running=False)
                             self._emit("log", text="Game stopped running; pausing sync")
@@ -251,6 +287,14 @@ class SessionWorker:
                                     success=full_snapshot is not None,
                                     error="full poll timed out" if full_snapshot is None else None,
                                 )
+                                if (
+                                    cfg.get("endpoint_type") == "mister"
+                                    and full_snapshot is not None
+                                ):
+                                    self._record_mister_snapshot_sample(
+                                        full_snapshot,
+                                        diagnostics,
+                                    )
                     if full_snapshot is not None:
                         invalid_reason = engine.implausible_snapshot_reason(full_snapshot)
                         if invalid_reason:
@@ -278,8 +322,9 @@ class SessionWorker:
                                             f"{engine.resync_send_pending_count} updates"
                                         ),
                                     )
-                            for msg in engine.drain_sleep_queue():
-                                self._emit("message", text=msg)
+                            for result in engine.drain_sleep_queue_results():
+                                self._record_incoming_result(diagnostics, result)
+                                self._emit_result_messages(diagnostics, result)
                             for addr, send_value, msg in engine.diff(full_snapshot):
                                 diagnostics.record_outgoing_update(addr, send_value)
                                 pipe.send_data({"addr": addr, "value": send_value})
@@ -311,6 +356,37 @@ class SessionWorker:
 
     def _emit_diagnostics(self, diagnostics: SessionDiagnostics, *, force: bool = False) -> None:
         self._emit("diagnostics", text=diagnostics.render_text())
+
+    def _record_mister_ram_sample(
+        self,
+        endpoint,
+        diagnostics: SessionDiagnostics,
+    ) -> None:
+        try:
+            snapshot = endpoint.read_ranges(MISTER_RAM_SAMPLE_RANGES, timeout_ms=300)
+        except Exception as exc:
+            diagnostics.last_endpoint_error = endpoint_error(exc)
+            return
+        if snapshot is None:
+            diagnostics.last_endpoint_error = (
+                getattr(endpoint, "last_error", None)
+                or "MiSTer RAM sample timed out"
+            )
+            return
+        self._record_mister_snapshot_sample(snapshot, diagnostics)
+
+    @staticmethod
+    def _record_mister_snapshot_sample(
+        snapshot: dict[int, int],
+        diagnostics: SessionDiagnostics,
+    ) -> None:
+        diagnostics.record_endpoint_sample(
+            {
+                addr: snapshot[addr]
+                for addr in MISTER_RAM_SAMPLE_ADDRS
+                if addr in snapshot
+            }
+        )
 
     def _on_partner_reconnected(
         self,
@@ -357,14 +433,36 @@ class SessionWorker:
         value = body.get("value")
         if addr is not None and value is not None:
             diagnostics.record_incoming_update(int(addr), int(value))
-        for msg in engine.handle_table(body):
-            if msg.startswith("Could not read address"):
-                diagnostics.record_incoming_read_error(msg)
-            elif msg.startswith("Could not write address"):
-                diagnostics.record_incoming_write_error(msg)
-            self._emit("message", text=msg)
+        result = engine.handle_table_result(body)
+        self._record_incoming_result(diagnostics, result)
+        self._emit_result_messages(diagnostics, result)
         diagnostics.set_backlogs(
             map_backlog=engine.map_write_pending_count,
             resync_backlog=engine.resync_send_pending_count,
         )
         self._emit_diagnostics(diagnostics, force=True)
+
+    def _record_incoming_result(
+        self,
+        diagnostics: SessionDiagnostics,
+        result,
+    ) -> None:
+        if result.addr is None or result.incoming_value is None:
+            return
+        diagnostics.record_incoming_result(
+            result.addr,
+            result.incoming_value,
+            applied=result.applied,
+            previous_value=result.previous_value,
+            written_value=result.written_value,
+            status=result.status,
+            messages=result.messages,
+        )
+
+    def _emit_result_messages(self, diagnostics: SessionDiagnostics, result) -> None:
+        for msg in result.messages:
+            if msg.startswith("Could not read address"):
+                diagnostics.record_incoming_read_error(msg)
+            elif msg.startswith("Could not write address"):
+                diagnostics.record_incoming_write_error(msg)
+            self._emit("message", text=msg)

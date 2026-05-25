@@ -1,4 +1,4 @@
-"""Generic memory endpoint interface for non-Lua emu-coop clients."""
+"""Generic memory endpoint interface for non-Lua Z1RR-coop clients."""
 from __future__ import annotations
 
 from typing import Protocol

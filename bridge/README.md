@@ -1,6 +1,6 @@
-# emu-coop hardware bridge
+# Z1RR-coop Bridge
 
-Connect a real NES endpoint to emu-coop sessions through EverDrive Pro N8 or MiSTer.
+Connect a real NES endpoint to Z1RR-coop sessions through EverDrive Pro N8 or MiSTer.
 
 ## What this is
 
@@ -8,7 +8,7 @@ A Windows app (with macOS support best-effort) that:
 - Patches and uploads a Z1 ROM for EDN8
 - Deploys the MiSTer helper/core payload and stages an unpatched source ROM for MiSTer
 - Talks to the selected device to read/write game memory
-- Connects to the emu-coop relay on the internet
+- Connects to the Z1RR-coop relay on the internet
 - Pairs with FCEUX, EDN8, or MiSTer endpoints through the same relay/session code
 - Syncs items, dungeon progress, and other game state in real time
 
@@ -18,7 +18,7 @@ MiSTer, EDN8 <-> MiSTer, EDN8 <-> EDN8, or MiSTer <-> MiSTer.
 
 ## Quick start
 
-1. **Download `z1rr-coop-2.0-beta7-hardware.exe`** (single file, ~19 MB).
+1. **Download `z1rr-coop-2.0-beta8-hardware.exe`** (single file, ~19 MB).
 2. **Run the .exe** and choose `EverDrive Pro N8` or `MiSTer`.
 3. For **EDN8**, plug in your cart and follow the patch/upload flow:
    - Pick your Z1 ROM (vanilla or Z1R seed; both work)
@@ -92,7 +92,7 @@ within ~30 seconds when the network is back.
 
 ### My inventory shows a phantom Heart Container or bomb upgrade
 
-This is a known emu-coop quirk (not specific to the bridge). When you and your
+This is a known upstream emu-coop quirk (not specific to the bridge). When you and your
 partner connect on the title screen and then start a new game, the cache snapshot
 can race ahead of the game's initial inventory writes. Workaround: load a save
 state of an already-running game on both peers before connecting.

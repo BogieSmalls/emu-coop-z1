@@ -117,6 +117,24 @@ class MisterDeployService:
         rc, _out, _err = self.run("command -v python3 >/dev/null 2>&1")
         return rc == 0
 
+    def missing_required_tools(self, tools: tuple[str, ...] | None = None) -> list[str]:
+        required = tools or ("python3", "nohup", "nc")
+        tool_names = " ".join(shlex.quote(tool) for tool in required)
+        rc, out, err = self.run(
+            "for tool in "
+            f"{tool_names}; do "
+            'command -v "$tool" >/dev/null 2>&1 || echo "$tool"; '
+            "done"
+        )
+        if rc != 0:
+            raise RuntimeError(f"Could not check MiSTer tools: {(err or out).strip()}")
+        return [line.strip() for line in out.splitlines() if line.strip()]
+
+    def ensure_required_tools(self, tools: tuple[str, ...] | None = None) -> None:
+        missing = self.missing_required_tools(tools)
+        if missing:
+            raise RuntimeError(f"MiSTer missing required tools: {', '.join(missing)}")
+
     def stage_rom(self, local_rom_path: Path, remote_rom_dir: str) -> str:
         remote_path = posixpath.join(remote_rom_dir.rstrip("/"), Path(local_rom_path).name)
         self.ensure_file(DeployAsset(Path(local_rom_path), remote_path))
@@ -142,8 +160,7 @@ class MisterDeployService:
         raise TimeoutError(f"MiSTer helper did not start on port {port}")
 
     def deploy(self, assets: list[DeployAsset]) -> None:
-        if not self.ensure_python3():
-            raise RuntimeError("MiSTer does not have python3 on PATH")
+        self.ensure_required_tools()
         for asset in assets:
             self.ensure_file(asset)
 

@@ -54,6 +54,13 @@ def test_zelda_cc_patch_loads():
     assert len(records) > 0
 
 
+def test_zelda_patch_rebrands_title_to_z1rrcoop():
+    patch_path = Path(__file__).parent.parent / "bridge_core" / "patches" / "zelda_z1rr_coop.ips"
+    records = dict(ips.parse(io.BytesIO(patch_path.read_bytes())))
+
+    assert records[0x01AAF8] == bytes([0x23, 0x01, 0x1B, 0x1B, 0x0C, 0x18, 0x18, 0x19])
+
+
 def test_is_patched_detects_applied():
     """If an IPS has been applied, is_patched should return True."""
     src = bytearray(b"\x00" * 1024)

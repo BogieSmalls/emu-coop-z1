@@ -160,6 +160,36 @@ def test_restart_helper_uses_nohup_and_existing_helper_port():
     assert "nc -z 127.0.0.1 55355" in commands[1]
 
 
+def test_deploy_checks_required_remote_tools_before_assets(tmp_path: Path):
+    helper = tmp_path / "mister-helper.py"
+    helper.write_text("helper", encoding="utf-8")
+    client = FakeSshClient()
+    service = make_service(client)
+    client.responses = [
+        (0, "", ""),
+        (1, "", "missing"),
+        (0, "", ""),
+        (0, "", ""),
+    ]
+
+    service.deploy([DeployAsset(helper, "/media/fat/Scripts/z1rr-coop/mister-helper.py")])
+
+    assert client.commands[0][0] == (
+        "for tool in python3 nohup nc; do "
+        "command -v \"$tool\" >/dev/null 2>&1 || echo \"$tool\"; "
+        "done"
+    )
+
+
+def test_deploy_reports_missing_required_remote_tools():
+    client = FakeSshClient()
+    service = make_service(client)
+    client.responses = [(0, "nc\n", "")]
+
+    with pytest.raises(RuntimeError, match="MiSTer missing required tools: nc"):
+        service.deploy([])
+
+
 def test_sftp_fallback_uploads_with_base64_cat_when_open_sftp_fails(tmp_path: Path):
     local = tmp_path / "mister-helper.py"
     local.write_text("helper", encoding="utf-8")

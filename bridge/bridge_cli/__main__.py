@@ -31,6 +31,11 @@ from bridge_core.edn8_overload import tloz_all_overload_options
 from bridge_core.map_write_gate import MapWriteGate
 from bridge_core.mister_deploy import DeployAsset, MisterDeployService, MisterSshConfig
 from bridge_core.mister_endpoint import ReadOnlyMisterMemoryEndpoint
+from bridge_core.mister_health import (
+    MisterHelperHealth,
+    format_mister_health_summary,
+    probe_mister_helper,
+)
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint, MisterHelperServer
 from bridge_core.mister_mailbox import (
     DevMemMailboxMemory,
@@ -191,6 +196,15 @@ def cmd_mister_deploy(args: argparse.Namespace) -> int:
             print(f"ROM staged: {remote_rom}")
         helper = manifest["helper"]
         service.restart_helper(helper["remote_path"], port=int(helper["port"]))
+        health = probe_mister_helper(
+            host=args.host,
+            port=int(helper["port"]),
+            timeout=args.timeout_s,
+        )
+        if not health.helper_reachable:
+            print(format_mister_health_summary(health), file=sys.stderr)
+            return 1
+        print(format_mister_health_summary(health))
         print("MiSTer deploy complete")
         return 0
     except FileNotFoundError as exc:
@@ -202,6 +216,22 @@ def cmd_mister_deploy(args: argparse.Namespace) -> int:
     finally:
         if service is not None:
             service.close()
+
+
+def cmd_mister_health(args: argparse.Namespace) -> int:
+    mode = import_module(f"bridge_core.modes.{args.mode}") if args.mode else None
+    health = probe_mister_helper(
+        host=args.host,
+        port=args.port,
+        timeout=args.timeout_s,
+        mode=mode,
+    )
+    text = format_mister_health_summary(health)
+    if not health.helper_reachable:
+        print(text, file=sys.stderr)
+        return 1
+    print(text)
+    return 0 if health.mirror_ok else 2
 
 
 def _load_mister_payload_manifest() -> dict:
@@ -498,7 +528,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_mister_deploy = sub.add_parser(
         "mister-deploy",
-        help="Deploy the MiSTer helper and emu-coop NES core over SSH",
+        help="Deploy the MiSTer helper and Z1RR-coop NES core over SSH",
     )
     p_mister_deploy.add_argument("--host", required=True)
     p_mister_deploy.add_argument("--username", default="root")
@@ -508,6 +538,19 @@ def main(argv: list[str] | None = None) -> int:
     p_mister_deploy.add_argument(
         "--rom",
         help="Optional Zelda 1 source ROM to stage under /media/fat/games/NES/z1rr-coop",
+    )
+
+    p_mister_health = sub.add_parser(
+        "mister-health",
+        help="Check PC connectivity to the MiSTer helper and smart-cache mirror",
+    )
+    p_mister_health.add_argument("--host", required=True)
+    p_mister_health.add_argument("--port", type=int, default=55355)
+    p_mister_health.add_argument("--timeout-s", type=float, default=2.0)
+    p_mister_health.add_argument(
+        "--mode",
+        default="tloz_progress",
+        help="Mode used to classify the 0x0012 running byte",
     )
 
     p_run = sub.add_parser("run", help="Run the bridge: connect to relay and sync game state")
@@ -532,6 +575,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_mister_run(args)
     elif args.cmd == "mister-deploy":
         return cmd_mister_deploy(args)
+    elif args.cmd == "mister-health":
+        return cmd_mister_health(args)
     elif args.cmd == "run":
         return cmd_run(args)
     return 1

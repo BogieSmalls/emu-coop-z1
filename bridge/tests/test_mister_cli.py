@@ -27,6 +27,20 @@ def test_mister_deploy_cli_passes_ssh_defaults(monkeypatch, capsys):
     monkeypatch.setattr(cli, "_build_mister_deploy_assets", lambda manifest: ["asset"], raising=False)
     monkeypatch.setattr(
         cli,
+        "probe_mister_helper",
+        lambda **_kwargs: cli.MisterHelperHealth(
+            helper_reachable=True,
+            mirror_ok=False,
+            addr=0x0012,
+            value=None,
+            frame=0,
+            running=None,
+            error="mirror_busy_or_inactive",
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        cli,
         "_load_mister_payload_manifest",
         lambda: {
             "helper": {"remote_path": "/media/fat/Scripts/z1rr-coop/mister-helper.py", "port": 55355},
@@ -45,7 +59,9 @@ def test_mister_deploy_cli_passes_ssh_defaults(monkeypatch, capsys):
     assert captured["assets"] == ["asset"]
     assert captured["restart"] == ("/media/fat/Scripts/z1rr-coop/mister-helper.py", 55355)
     assert captured["closed"] is True
-    assert "MiSTer deploy complete" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "MiSTer helper reachable; mirror read failed: mirror_busy_or_inactive frame=0" in out
+    assert "MiSTer deploy complete" in out
 
 
 def test_mister_deploy_cli_accepts_custom_username_password_and_rom(
@@ -80,6 +96,20 @@ def test_mister_deploy_cli_accepts_custom_username_password_and_rom(
     monkeypatch.setattr(cli, "_build_mister_deploy_assets", lambda manifest: ["asset"], raising=False)
     monkeypatch.setattr(
         cli,
+        "probe_mister_helper",
+        lambda **_kwargs: cli.MisterHelperHealth(
+            helper_reachable=True,
+            mirror_ok=True,
+            addr=0x0012,
+            value=0x05,
+            frame=12,
+            running=True,
+            error=None,
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        cli,
         "_load_mister_payload_manifest",
         lambda: {
             "helper": {"remote_path": "/helper.py", "port": 55355},
@@ -109,6 +139,80 @@ def test_mister_deploy_cli_accepts_custom_username_password_and_rom(
     assert captured["config"].password == "secret"
     assert captured["config"].port == 2222
     assert captured["stage_rom"] == (rom, "/media/fat/games/NES/z1rr-coop")
+
+
+def test_mister_deploy_cli_fails_when_helper_is_unreachable(monkeypatch, capsys):
+    captured = {}
+
+    class FakeDeployService:
+        def __init__(self, config, on_event=None):
+            pass
+
+        def connect(self):
+            return None
+
+        def deploy(self, assets):
+            return None
+
+        def restart_helper(self, remote_helper_path, port=55355):
+            captured["restart"] = (remote_helper_path, port)
+
+        def close(self):
+            captured["closed"] = True
+
+    monkeypatch.setattr(cli, "MisterDeployService", FakeDeployService, raising=False)
+    monkeypatch.setattr(cli, "_build_mister_deploy_assets", lambda manifest: ["asset"], raising=False)
+    monkeypatch.setattr(
+        cli,
+        "_load_mister_payload_manifest",
+        lambda: {
+            "helper": {"remote_path": "/helper.py", "port": 55355},
+            "roms": {"remote_dir": "/media/fat/games/NES/z1rr-coop"},
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        cli,
+        "probe_mister_helper",
+        lambda **_kwargs: cli.MisterHelperHealth(
+            helper_reachable=False,
+            mirror_ok=False,
+            addr=0x0012,
+            value=None,
+            frame=0,
+            running=None,
+            error="connection refused",
+        ),
+        raising=False,
+    )
+
+    rc = cli.main(["mister-deploy", "--host", "192.168.1.50"])
+
+    assert rc == 1
+    assert captured["closed"] is True
+    assert "MiSTer helper unreachable: connection refused" in capsys.readouterr().err
+
+
+def test_mister_health_cli_reports_helper_and_mirror_status(monkeypatch, capsys):
+    monkeypatch.setattr(
+        cli,
+        "probe_mister_helper",
+        lambda **_kwargs: cli.MisterHelperHealth(
+            helper_reachable=True,
+            mirror_ok=True,
+            addr=0x0012,
+            value=0x05,
+            frame=42,
+            running=True,
+            error=None,
+        ),
+        raising=False,
+    )
+
+    rc = cli.main(["mister-health", "--host", "192.168.0.130", "--mode", "tloz_progress"])
+
+    assert rc == 0
+    assert "MiSTer helper/mirror OK: 0x0012=0x05 frame=42 running=yes" in capsys.readouterr().out
 
 
 def test_mister_deploy_cli_reports_missing_local_core(monkeypatch, capsys):

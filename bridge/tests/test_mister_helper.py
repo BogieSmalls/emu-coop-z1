@@ -108,6 +108,7 @@ def test_helper_client_returns_none_for_busy_or_inactive_response():
 
     assert endpoint.read_byte(0x0012) is None
     assert endpoint.last_frame == 88
+    assert endpoint.last_error == "mirror_busy_or_inactive"
 
 
 def test_helper_client_preserves_write_not_supported_contract():

@@ -191,11 +191,11 @@ NMI_HOOK_LEN = 8
 # would silently corrupt the PRG1 title. Solution: write a shorter 8-byte
 # string at 0x01AAF8, the longest contiguous run that's blank padding (0x24)
 # in BOTH PRG0 and PRG1, so a single IPS works for either revision.
-#   E=0x0E M=0x16 U=0x1E -=0x2F C=0x0C O=0x18 P=0x19
+#   A=0x0A ... Z=0x23, digits use 0x00-0x09.
 TITLE_OLD_FILE = 0x01AAFC
 TITLE_OLD_LEN = 13
 TITLE_NEW_FILE = 0x01AAF8
-TITLE_NEW_BYTES = bytes([0x0E, 0x16, 0x1E, 0x2F, 0x0C, 0x18, 0x18, 0x19])  # EMU-COOP
+TITLE_NEW_BYTES = bytes([0x23, 0x01, 0x1B, 0x1B, 0x0C, 0x18, 0x18, 0x19])  # Z1RRCOOP
 
 
 def _bank7_file_offset(cpu_addr: int) -> int:
@@ -458,7 +458,7 @@ def main() -> None:
     final[0x0200_0B] = (NMI_HOOK_NEW_CPU >> 8) & 0xFF
 
     # 6. Title-screen rebrand. Skip-range above leaves TITLE_OLD_FILE as vanilla;
-    #    write the shorter "EMU-COOP" tile sequence at TITLE_NEW_FILE, which sits
+    #    write the shorter "Z1RRCOOP" tile sequence at TITLE_NEW_FILE, which sits
     #    entirely inside the 9-byte run of blank-tile padding (0x24) shared by
     #    PRG0 and PRG1 vanilla. Same IPS applies cleanly to either revision.
     final[TITLE_NEW_FILE:TITLE_NEW_FILE + len(TITLE_NEW_BYTES)] = TITLE_NEW_BYTES

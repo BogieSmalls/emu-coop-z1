@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 WINDOW_GEOMETRY = "760x720"
 WINDOW_MIN_SIZE = (700, 560)
+APP_TITLE = "Z1RR-coop Bridge"
 APP_ICON = Path("assets/ganon_blue.ico")
 
 
@@ -19,7 +20,7 @@ def asset_path(relative_path: Path) -> Path:
 class BridgeApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("emu-coop bridge")
+        self.title(APP_TITLE)
         self._set_window_icon()
         self.geometry(WINDOW_GEOMETRY)
         self.minsize(*WINDOW_MIN_SIZE)

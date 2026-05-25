@@ -4,7 +4,8 @@ import pytest
 
 import bridge_gui.session_worker as session_worker
 from bridge_core.mister_helper import MisterHelperMemoryEndpoint
-from bridge_core.modes import tloz_all
+from bridge_core.modes import tloz_all, tloz_progress
+from bridge_core.session_diagnostics import SessionDiagnostics
 from bridge_core.sync_engine import SyncEngine
 from bridge_gui.session_worker import SessionWorker, edn8_overload_options
 
@@ -131,6 +132,42 @@ def test_mister_session_applies_incoming_writes_through_helper_endpoint():
     ]
 
 
+def test_session_worker_emits_partner_message_for_incoming_mister_raft():
+    events = queue.Queue()
+    writes = []
+
+    class FakeEndpoint:
+        def read_byte(self, addr, timeout_ms=200):
+            if addr == tloz_progress.RUNNING_ADDR:
+                return 0x0B
+            if addr == 0x0660:
+                return 0x00
+            raise AssertionError(f"unexpected read_byte 0x{addr:04X}")
+
+        def write_pairs(self, pairs):
+            writes.extend(pairs)
+            return True
+
+    worker = SessionWorker({}, events)
+    diagnostics = SessionDiagnostics(endpoint_type="mister", mode_name="tloz_progress")
+    engine = SyncEngine(endpoint=FakeEndpoint(), mode=tloz_progress)
+
+    worker._on_data(engine, diagnostics, {"addr": 0x0660, "value": 0x01})
+
+    collected = list(events.queue)
+    assert writes == [(0x0660, 0x01)]
+    assert any(
+        event.kind == "message" and event.data["text"] == "Partner got Raft"
+        for event in collected
+    )
+    diagnostics_text = [
+        event.data["text"]
+        for event in collected
+        if event.kind == "diagnostics"
+    ][-1]
+    assert "Last incoming result: 0x0660 0x00 -> 0x01 applied; Partner got Raft" in diagnostics_text
+
+
 def test_session_worker_does_not_fail_when_endpoint_poll_times_out(monkeypatch):
     events = queue.Queue()
     fake_pipe = None
@@ -230,9 +267,19 @@ def test_session_worker_skips_full_poll_when_running_probe_is_not_running(monkey
             pass
 
     class FakeEndpoint:
+        last_frame = 123
+
         def read_ranges(self, ranges, timeout_ms=300):
             read_ranges_calls.append(ranges)
-            fake_pipe.state = "CLOSED"
+            if len(read_ranges_calls) >= 2:
+                fake_pipe.state = "CLOSED"
+                return {
+                    0x0012: 0x00,
+                    0x0657: 0x01,
+                    0x065A: 0x00,
+                    0x0660: 0x01,
+                    0x0671: 0x00,
+                }
             return {0x0012: 0x00}
 
         def close(self):
@@ -283,7 +330,198 @@ def test_session_worker_skips_full_poll_when_running_probe_is_not_running(monkey
 
     worker._run()
 
-    assert read_ranges_calls == [[(tloz_all.RUNNING_ADDR, 1)]]
+    assert read_ranges_calls == [
+        [(tloz_all.RUNNING_ADDR, 1)],
+        [(0x0012, 1), (0x0657, 1), (0x065A, 1), (0x0660, 1), (0x0671, 1)],
+    ]
+    diagnostics = [
+        event.data["text"]
+        for event in list(events.queue)
+        if event.kind == "diagnostics"
+    ]
+    assert diagnostics
+    assert "Running probes: 0 running / 1 not running / 0 failed" in diagnostics[-1]
+    assert "Running state: not running" in diagnostics[-1]
+    assert "Last running byte: 0x0012=0x00" in diagnostics[-1]
+    assert "Last endpoint frame: 123" in diagnostics[-1]
+    assert (
+        "Last RAM sample: 0x0012=0x00, 0x0657=0x01, 0x065A=0x00, "
+        "0x0660=0x01, 0x0671=0x00"
+    ) in diagnostics[-1]
+
+
+def test_session_worker_reports_mister_helper_mirror_error(monkeypatch):
+    events = queue.Queue()
+    fake_pipe = None
+
+    class FakeSocket:
+        def connect(self, address):
+            self.address = address
+
+        def setblocking(self, blocking):
+            self.blocking = blocking
+
+        def close(self):
+            pass
+
+    class FakeEndpoint:
+        last_frame = 321
+        last_error = "mirror_busy_or_inactive"
+
+        def read_ranges(self, ranges, timeout_ms=300):
+            fake_pipe.state = "CLOSED"
+            return None
+
+        def close(self):
+            pass
+
+    class FakePipe:
+        def __init__(self, socket, code, peer_id):
+            nonlocal fake_pipe
+            fake_pipe = self
+            self.state = "ESTABLISHED"
+            self.sent = []
+            self.on_data = None
+            self.on_abort = None
+            self.on_partner_reconnected = None
+            self._reconnect_enabled = False
+
+        def send_join(self):
+            pass
+
+        def tick(self):
+            pass
+
+        def heartbeat_tick(self):
+            pass
+
+        def send_data(self, body):
+            self.sent.append(body)
+
+        def close(self):
+            self.state = "CLOSED"
+
+    monkeypatch.setattr(session_worker.socket, "socket", lambda *args, **kwargs: FakeSocket())
+    monkeypatch.setattr(session_worker, "MisterHelperMemoryEndpoint", lambda **kwargs: FakeEndpoint())
+    monkeypatch.setattr(session_worker, "PipeClient", FakePipe)
+
+    worker = SessionWorker(
+        {
+            "endpoint_type": "mister",
+            "mister_host": "192.168.0.130",
+            "mister_port": 55355,
+            "mode": "tloz_progress",
+            "relay": "coop.z1rracing.com",
+            "relay_port": 9999,
+            "code": "abcdef",
+        },
+        events,
+    )
+
+    worker._run()
+
+    diagnostics = [
+        event.data["text"]
+        for event in list(events.queue)
+        if event.kind == "diagnostics"
+    ]
+    assert diagnostics
+    assert "Running probes: 0 running / 0 not running / 1 failed" in diagnostics[-1]
+    assert "Last endpoint frame: 321" in diagnostics[-1]
+    assert "Last endpoint error: mirror_busy_or_inactive" in diagnostics[-1]
+
+
+def test_session_worker_records_mister_sample_from_successful_full_poll(monkeypatch):
+    events = queue.Queue()
+    read_ranges_calls = []
+    fake_pipe = None
+
+    class FakeSocket:
+        def connect(self, address):
+            self.address = address
+
+        def setblocking(self, blocking):
+            self.blocking = blocking
+
+        def close(self):
+            pass
+
+    class FakeEndpoint:
+        last_frame = 456
+
+        def read_ranges(self, ranges, timeout_ms=300):
+            read_ranges_calls.append(ranges)
+            if len(read_ranges_calls) == 1:
+                return {0x0012: 0x0B}
+            fake_pipe.state = "CLOSED"
+            return {
+                0x0012: 0x0B,
+                0x0657: 0x01,
+                0x065A: 0x01,
+                0x0660: 0x00,
+                0x0671: 0x04,
+            }
+
+        def close(self):
+            pass
+
+    class FakePipe:
+        def __init__(self, socket, code, peer_id):
+            nonlocal fake_pipe
+            fake_pipe = self
+            self.state = "ESTABLISHED"
+            self.sent = []
+            self.on_data = None
+            self.on_abort = None
+            self.on_partner_reconnected = None
+            self._reconnect_enabled = False
+
+        def send_join(self):
+            pass
+
+        def tick(self):
+            pass
+
+        def heartbeat_tick(self):
+            pass
+
+        def send_data(self, body):
+            self.sent.append(body)
+
+        def close(self):
+            self.state = "CLOSED"
+
+    monkeypatch.setattr(session_worker.socket, "socket", lambda *args, **kwargs: FakeSocket())
+    monkeypatch.setattr(session_worker, "MisterHelperMemoryEndpoint", lambda **kwargs: FakeEndpoint())
+    monkeypatch.setattr(session_worker, "PipeClient", FakePipe)
+
+    worker = SessionWorker(
+        {
+            "endpoint_type": "mister",
+            "mister_host": "192.168.0.130",
+            "mister_port": 55355,
+            "mode": "tloz_progress",
+            "relay": "coop.z1rracing.com",
+            "relay_port": 9999,
+            "code": "abcdef",
+        },
+        events,
+    )
+
+    worker._run()
+
+    diagnostics = [
+        event.data["text"]
+        for event in list(events.queue)
+        if event.kind == "diagnostics"
+    ]
+
+    assert diagnostics
+    assert "Full polls: 1 ok / 0 failed" in diagnostics[-1]
+    assert (
+        "Last RAM sample: 0x0012=0x0B, 0x0657=0x01, 0x065A=0x01, "
+        "0x0660=0x00, 0x0671=0x04"
+    ) in diagnostics[-1]
 
 
 def test_session_worker_emits_edn8_diagnostics(monkeypatch):

@@ -287,7 +287,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     server = HelperServer((args.host, args.port), memory)
     try:
-        print(f"emu-coop MiSTer helper listening on {args.host}:{args.port}", flush=True)
+        print(f"Z1RR-coop MiSTer helper listening on {args.host}:{args.port}", flush=True)
         server.serve_forever()
     except KeyboardInterrupt:
         pass
